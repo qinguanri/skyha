@@ -1,0 +1,736 @@
+#!/bin/sh
+#
+# Description: The control program for build a ha system.
+#              Main program: (1) prepare. (2) install (3) failover (4) recover
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global:
+
+WORK_DIR=$(cd `dirname $0`; pwd)
+INSTALL_DIR=$(cd $WORK_DIR; cd ../; pwd)
+PROC_NAME="skylar_ha"
+PROC_FILE="$PROC_NAME.tar.gz"
+
+RECOVERY_LOG="/var/log/skyha_recovery.log"
+
+###############################################################################
+
+
+usage() {
+    cat <<END
+skyha build a High Availabe system for postgresql/redis/beanstalkd.
+
+usage: skyha <command> [<args>]
+
+The most commonly used skyha commands are:
+    reset       Clean configs.
+    failover    Config failover for ha system. $0 failover <pg|redis>. e.g: $0 failover pg or $0 failover redis.
+    help        Show usage.
+    install     Install a ha system. $0 install master_ip=1.2.3.4 slave_ip=1.2.3.5 vip_master=1.2.3.6 \
+                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000
+    config      Set master_ip, slave_ip and so on. $0 config master_ip=1.2.3.4 slave_ip=1.2.3.5 vip_master=1.2.3.6 \
+                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000
+    recover     WHen master or slave crash, we need to 'recover' it. $0 recover.
+    enable      Enable some function. e.g: $0 enable auto_recovery.
+    disable     Disable some function. e.g: $0 disable auto_recovery.
+    show        Show HA status.
+    switch-master-slave Switch the role of master and slave. This command can only do on master node.
+END
+}
+
+#
+# do prepare before install. 
+# prepare for environment, check args, check files and so on.
+#
+prepare() {
+    if [ ! -f "$WORK_DIR/conf/ha.conf" ]; then
+        echo "ERROR. can not find file: $WORK_DIR/conf/ha.conf"
+        return 1
+    fi
+
+    if ! systemctl status docker.service; then
+        systemctl start docker.service
+        if [ $? -ne 0 ]; then
+            echo "ERROR. start docker.service failed."
+            return 1
+        fi
+    fi
+
+    source $WORK_DIR/conf/ha.conf
+
+    mkdir -p $INSTALL_DIR
+
+    echo "kill other yum process."
+    kill -9 $(ps -ef | grep 'yum' | awk {'print $2'})
+
+    chmod +x $WORK_DIR/manager/* $WORK_DIR/resource/* $WORK_DIR/include/* $WORK_DIR/skyha
+
+    $WORK_DIR/include/common "create_repo"
+
+    for file in $WORK_DIR/manager/* $WORK_DIR/resource/*
+    do
+        if [ -f $file ]; then
+            $file "prepare"
+            if [ $? -ne 0 ]; then
+                echo "ERROR. Execute $file prepare failed."
+                return 1
+            fi
+        fi
+    done
+
+    # restart iptables.service to update configuration
+    systemctl restart iptables.service
+
+    return 0
+}
+
+#
+# invoke every manager's and resource's install functions.
+# install manager at first, then install resource
+#
+install() {
+    echo "kill other yum process."
+    kill -9 $(ps -ef | grep 'yum' | awk {'print $2'})
+    for file in $WORK_DIR/manager/* $WORK_DIR/resource/*
+    do
+        if [ -f $file ]; then
+            $file "install"
+            if [ $? -ne 0 ]; then
+                echo "ERROR. execute $file install failed."
+                return 1
+            fi
+        fi
+    done
+
+    return 0
+}
+
+#
+# failover $mode.   $mode can be STANDALONE or MS. 
+# config failover for each resource. when it finished, resource should be reach on ha status.
+#
+failover() {
+    mode=$1
+    if [ "$mode" != "STANDALONE" ]; then
+        echo "set drbd master ..."
+        $WORK_DIR/resource/drbd set_master
+        if [ $? -ne 0 ]; then
+            echo "drbd set master failed."
+            return 1
+        fi
+    fi
+
+    echo "stop pacemaker ...."
+    pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
+    if [ $pacemaker_proc -gt 0 ]; then
+        kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
+    fi
+    sleep 1
+
+    systemctl stop pacemaker.service
+    rm -rf /var/lib/pacemaker/cib/cib*
+    rm -f /etc/corosync/corosync.conf
+    systemctl restart pcsd.service
+    systemctl enable pcsd.service
+    sleep 5
+
+    pcs cluster auth -u hacluster -p hacluster $master_hostname $slave_hostname
+    pcs cluster setup --last_man_standing=1 --name skycluster $master_hostname $slave_hostname --force
+    pcs cluster start --all
+
+    sleep 2
+    master_corosync_run=`pcs status corosync | grep $master_hostname | grep -v grep | wc -l`
+    slave_corosync_run=`pcs status corosync | grep $slave_hostname | grep -v grep | wc -l`
+
+    if [ "$mode" == "STANDALONE" ]; then
+        echo "failover mode is $mode"
+    elif [ "$master_corosync_run" == "0" ] || [ "$slave_corosync_run" == "0" ]; then
+        echo "ERROR. master's corosync or slave's corosync run error."
+        pcs status corosync
+        return 1
+    fi
+
+    echo "start pacemaker ...."
+    systemctl start pacemaker.service
+    try_count=1
+    MAX_TRY=60
+    while [ $try_count -lt $MAX_TRY ]
+    do
+        if systemctl status pacemaker.service; then
+            break
+        fi
+        echo "pacemaker is starting ..."
+        sleep 1
+        let "try_count++"
+    done
+    if ! systemctl status pacemaker.service; then
+        echo "ERROR. pacemaker start failed."
+        return 1
+    fi
+
+    cd $WORK_DIR
+    rm -f resource_cfg
+    pcs cluster cib resource_cfg
+    for file in $WORK_DIR/resource/*
+    do
+        if [ -f $file ]; then
+            $file "failover"
+            if [ $? -ne 0 ]; then
+                echo "ERROR. execute $file failover failed."
+                return 1
+            fi
+        fi
+    done
+
+    ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
+    pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
+    pcs -f resource_cfg constraint colocation add skyfs with drbd-cluster INFINITY with-rsc-role=Master
+    pcs -f resource_cfg constraint colocation add bstkd with master-group INFINITY
+    pcs -f resource_cfg constraint colocation add redis with master-group INFINITY
+    pcs -f resource_cfg constraint colocation add skyfs with master-group INFINITY
+    pcs -f resource_cfg constraint colocation add nfs-daemon with master-group INFINITY
+    pcs -f resource_cfg constraint colocation add nfs-root with master-group INFINITY
+    pcs -f resource_cfg constraint colocation add master-group with master pgsql-cluster INFINITY
+    
+
+    ## HA组件启动顺序约束：vip(master-group) -> drbd-cluster -> skyfs & pg-cluster & redis & bstkd & nfs
+    pcs -f resource_cfg constraint order start master-group then promote drbd-cluster symmetrical=false score=INFINITY
+    pcs -f resource_cfg constraint order start master-group then promote pgsql-cluster symmetrical=false score=INFINITY
+    pcs -f resource_cfg constraint order demote pgsql-cluster then stop master-group symmetrical=false score=0
+    pcs -f resource_cfg constraint order promote drbd-cluster then start skyfs
+    pcs -f resource_cfg constraint order skyfs then bstkd
+    pcs -f resource_cfg constraint order skyfs then redis
+    pcs -f resource_cfg constraint order skyfs then nfs-daemon
+    pcs -f resource_cfg constraint order skyfs then nfs-root
+    pcs -f resource_cfg constraint order nfs-daemon then nfs-root
+
+    pcs cluster cib-push resource_cfg
+    rm -f resource_cfg
+
+    sleep 2
+    pcs cluster unstandby --all
+
+    if [ "$mode" == "STANDALONE" ]; then
+        $WORK_DIR/resource/pg check_master_status
+        if [ $? -ne 0 ]; then
+            echo "ERROR. PG master status is error."
+            return 1
+        fi
+        install_finished
+        return 0
+    fi
+
+    check_ha_status
+    if [ $? -ne 0 ]; then
+        echo "ERROR. config failed."
+        return 1  
+    fi
+
+    install_finished
+
+    return 0
+}
+
+#
+# get args from input, and output args into ha.conf
+#
+args_parse() {
+    args="$@"
+    # write args into ha.conf
+    echo "$args" | xargs -n 1 > $WORK_DIR/conf/ha.conf
+
+    source $WORK_DIR/conf/ha.conf
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Argument invalid."
+        usage
+        exit 1
+    fi
+
+    return 0
+}
+
+#
+# invoke manager's and resource's clean method. clean some configs.
+#
+reset() {
+    docker stop redis
+    docker stop pg
+    docker stop beanstalkd
+    docker rm redis
+    docker rm pg
+    docker rm beanstalkd
+
+    for file in $WORK_DIR/manager/* $WORK_DIR/resource/*
+    do
+        if [ -f $file ]; then
+            $file "clean"
+            if [ $? -ne 0 ]; then
+                echo "ERROR. execute $file clean failed."
+                return 1
+            fi
+        fi
+    done
+
+    echo "remove images ..."
+    docker rmi skylar_redis
+    docker rmi skylar_pg
+    docker rmi skylar_beanstalkd
+
+    return 0
+}
+
+#
+# invoke the resouce's recover method. recover resouce back to ha status.
+#
+recover() {
+    date
+    try=0
+    while [ $try -le 5 ]
+    do
+        losetup -a | grep 'drbd.img'
+        if [ $? -ne 0 ]; then
+            losetup /dev/loop9 $data_dir/drbd.img
+        else
+            break
+        fi
+
+        sleep 1
+        let "try++"
+    done
+
+    systemctl start docker.service
+
+    if ! master_is_work; then
+        recover_master
+        $WORK_DIR/resource/pg check_master_status
+    elif ! slave_is_work; then
+        ip addr | grep $vip_master
+        if [ $? -ne 0 ]; then
+            recover_slave $1
+            check_ha_status
+        fi
+    fi
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Recover failed. `date`"
+    fi
+
+    echo "Done. Recover finished at time: `date`"
+}
+
+check_ha_status() {
+    for file in $WORK_DIR/resource/*
+    do
+        if [ -f $file ]; then
+            $file "status"
+            if [ $? -ne 0 ]; then
+                echo "ERROR. HA status is incorrect. Execute $file status failed."
+                return 1
+            fi
+        fi
+    done
+
+    return 0
+}
+
+master_is_work() {
+    ping -c 1 "$vip_master"
+    return $?
+}
+
+slave_is_work() {
+    crm_mon -Afr -1
+
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+
+    crm_mon -Afr -1 | grep OFFLINE
+    if [ $? -eq 0 ]; then
+        return 1
+    fi
+
+    crm_mon -Afr -1 | grep standby
+    if [ $? -eq 0 ]; then
+        return 1
+    fi
+
+    crm_mon -Afr -1 |grep 'DISCONNECT'
+    if [ $? -eq 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
+recover_master() {
+    echo "recover master, please wait minutes ..."
+    pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
+    if [ $pacemaker_proc -gt 0 ]; then
+        kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
+    fi
+    systemctl stop pacemaker.service
+    docker start pg
+
+    # if we don't rm the lock file, pacemaker will start error.
+    docker exec -it pg rm -f /var/lib/pgsql/tmp/PGSQL.lock
+
+    drbdadm up skydata
+    drbdadm primary all
+    drbdadm disconnect all
+    drbdadm connect all
+
+    systemctl start pacemaker.service
+
+    return 1
+}
+
+recover_slave() {
+    echo "recover slave ..."
+    
+    recover_mode=$1
+    if [ "$recover_mode" == "full" ]; then
+        $WORK_DIR/resource/pg recover full
+    else
+        $WORK_DIR/resource/pg recover incr
+    fi
+	
+    $WORK_DIR/resource/drbd recover
+    
+    $WORK_DIR/resource/redis recover
+}
+
+#
+# check args and install just for one host.
+# 
+run() {
+    args_parse $@
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR. args parse failed."
+        exit 1
+    fi
+
+    echo "(1) ******* Prepare environment ..."
+    if ! prepare; then
+        echo "ERROR. Prepare environment failed."
+        exit 1
+    fi
+
+    echo "(2) ******* Install ..."
+    if ! install; then
+        echo "ERROR. Install skylar high available failed."
+        exit 1
+    fi
+
+    enable "auto_recovery"
+    echo "OK. Install succeed."
+}
+
+setup() {
+    args=($@)
+    unset args[0]
+    run ${args[@]}
+}
+
+install_finished() {
+    echo '
+                                 
+            Skylar  High  Available
+                Powered by Gary
+
+              ___.-~"~-._   __....__
+            .`    `    \ ~"~        ``-.
+           /` _      )  `\              `\
+          /`  a)    /     |               `\
+         :`        /      |                 \
+    <`-._|`  .-.  (      /   .            `;\\
+     `-. `--`_.`-.;\___/`   .      .       | \\
+  _     /:--`     |        /     /        .`  \\
+ ("\   /`/        |       `     `         /    :`;
+ `\`\_/`/         .\     /`~`--.:        /     ``
+   `._.`          /`\    |      `\      /(
+                 /  /\   |        `Y   /  \
+                J  /  Y  |         |  /`\  \
+               /  |   |  |         |  |  |  |
+              "---"  /___|        /___|  /__|
+                     `"""         `"""  `"""
+
+    Congratulations! Installation completed! '
+}
+
+check_args_valid()
+{
+    $WORK_DIR/include/common check_args_valid
+    return $?
+}
+
+#
+# install all resource and manager's for all hosts. Then config failover for all hosts.
+#
+install_all() {
+    args=($@)
+    unset args[0]
+    args_parse ${args[@]}
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR. args parse failed."
+        usage
+        exit 1
+    fi
+
+    if ! check_args_valid; then
+        echo "ERROR. args are not valid."
+        return 1
+    fi
+
+    find $INSTALL_DIR -name "$PROC_FILE"
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Cannot find file: $INSTALL_DIR/$PROC_FILE"
+        return 1
+    fi
+
+    hostname -I | grep "$master_ip"
+    if [ $? -ne 0 ]; then
+        echo "ERROR. This host is not $master_ip, please kill this process then install at $master_ip."
+        sleep 120
+    fi
+
+    clear
+    echo "******* 1. Copy $PROC_FILE to root@$slave_ip:$INSTALL_DIR"
+    ssh root@$slave_ip "ls -l $INSTALL_DIR/$PROC_NAME/skyha"
+    if [ $? -ne 0 ]; then
+        echo "copy file to root@$slave_ip, please wait seconds"
+        ssh root@$slave_ip "mkdir -p $INSTALL_DIR"
+        scp $INSTALL_DIR/$PROC_FILE root@$slave_ip:$INSTALL_DIR
+    fi
+
+    ssh root@$slave_ip "ls -l $INSTALL_DIR/$PROC_NAME/skyha"
+    if [ $? -ne 0 ]; then
+        ssh root@$slave_ip "cd $INSTALL_DIR; tar xzvf $PROC_FILE; chmod +x $INSTALL_DIR/$PROC_NAME/skyha"
+        if [ $? -ne 0 ]; then
+            echo "ERROR. scp from $master_ip to $slave_ip failed."
+            return 1
+        fi
+    fi
+
+    echo "******* 2. Install ..."
+    run ${args[@]}
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Install at master failed."
+        return 1
+    fi
+
+    ssh root@$slave_ip "$INSTALL_DIR/$PROC_NAME/skyha setup ${args[@]}"
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Install at slave failed."
+        return 1
+    fi
+
+    echo "******* 3. Config failover ..."
+    #TODO: should support failover config pg redis, don't need to config bstkd failover here.
+    failover
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Config failover failed."
+        return 1
+    fi
+
+    return 0
+}
+
+config() {
+    args=($@)
+    unset args[0]
+    args_parse ${args[@]}
+    if [ $? -ne 0 ]; then
+        echo "ERROR. argument error."
+        usage
+        exit 1
+    fi
+
+    if ! check_args_valid; then
+        echo "ERROR. args invalid"
+        usage
+        exit 1
+    fi
+
+    echo "config succeed."
+}
+
+enable() {
+    arg=$1
+    if [ "$arg" == "auto_recovery" ]; then
+        cat /etc/rc.local | grep 'skyha recover'
+        if [ $? -eq 0 ]; then
+            return 0
+        fi
+        echo "$WORK_DIR/skyha recover >> $RECOVERY_LOG &" >> /etc/rc.local
+        echo "$WORK_DIR/skyha recover >> $RECOVERY_LOG &" >> /etc/rc.d/rc.local
+        chmod +x /etc/rc.local /etc/rc.d/rc.local
+    fi
+}
+
+disable() {
+    arg=$1
+    if [ "$arg" == "auto_recovery" ]; then
+        sed -i '/skyha recover/d' /etc/rc.local
+        sed -i '/skyha recover/d' /etc/rc.d/rc.local
+    fi
+    return 0
+}
+
+solve_split_brain() {
+    $WORK_DIR/resource/drbd 'brain'
+}
+
+show_status() {
+    if [ ! -n "$master_ip" ] || [ ! -n "$slave_ip" ]; then
+        echo "ERROR. master_ip or slave_ip is incorrect."
+        return 0
+    fi
+
+    my_ip="$master_ip"
+    hostname -I | grep "$slave_ip"
+    if [ $? -eq 0 ]; then
+        my_ip="$slave_ip"
+    fi
+
+    if [ "$my_ip" == "$master_ip" ]; then
+        master_dir_recover_info=`du -sh $data_dir/recover`
+        master_dir_pgdata_info=`du -sh $data_dir/pg`
+        master_img_drbd_size=`ls -lh $data_dir/drbd.img |awk {'print $5'}`
+
+        res=`ping -c 1 "$slave_ip"`
+        if [ "$?" -ne 0 ]; then
+            echo "ERROR. Ping $slave_ip failed."
+        else
+            slave_dir_recover_info=`ssh root@$slave_ip "du -sh $data_dir/recover"`
+            slave_dir_pgdata_info=`ssh root@$slave_ip "du -sh $data_dir/pg"`
+            slave_img_drbd_size=`ssh root@$slave_ip "ls -lh $data_dir/drbd.img"`
+            slave_img_drbd_size=`echo $slave_img_drbd_size| awk {'print $5'}`
+        fi
+    fi
+
+    if [ "$my_ip" == "$slave_ip" ]; then
+        res=`ping -c 1 "$master_ip"`
+        if [ "$?" -ne 0 ]; then
+            echo "ERROR. Ping $master_ip failed."
+        else
+            master_dir_recover_info=`ssh root@$master_ip "du -sh $data_dir/recover"`
+            master_dir_pgdata_info=`ssh root@$master_ip "du -sh $data_dir/pg"`
+            master_img_drbd_size=`ssh root@$master_ip "ls -lh $data_dir/drbd.img"`
+            master_img_drbd_size=`echo $master_img_drbd_size|awk {'print $5'}`
+        fi
+
+        slave_dir_recover_info=`du -sh $data_dir/recover`
+        slave_dir_pgdata_info=`du -sh $data_dir/pg`
+        slave_img_drbd_size=`ls -lh $data_dir/drbd.img |awk {'print $5'}`
+    fi
+
+    echo "
+Base Info:
+  * vip: $vip_master
+  * $master_hostname: $master_ip
+  * $slave_hostname: $slave_ip
+
+Space Info:
+* Node $master_hostname:
+   + $master_dir_recover_info
+   + $master_dir_pgdata_info
+   + $master_img_drbd_size     $data_dir/drbd.img
+* Node $slave_hostname:
+   + $slave_dir_recover_info
+   + $slave_dir_pgdata_info
+   + $slave_img_drbd_size      $data_dir/drbd.img
+
+NFS Info:
+`showmount -e $vip_master`
+"
+    crm_mon -Afr -1
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Pacemaker may not start correctly."
+    fi
+}
+
+switch() {
+    ip addr | grep $vip_master
+    if [ $? -ne 0 ]; then
+        echo "ERROR. This host is not master. Please do switch on master."
+        return 1
+    fi
+
+    echo "Check ha status, please wait ..."
+    check_ha_status
+    if [ $? -ne 0 ]; then
+        echo "ERROR. HA status is incorrect. It can not switch."
+        return 1
+    fi
+
+    NODENAME=$master_hostname
+    crm_mon -Afr -1 | grep Masters | grep $NODENAME
+    if [ $? -ne 0 ]; then
+        NODENAME=$slave_hostname
+    fi
+
+    echo "pcs cluster standby $NODENAME ..."
+    pcs cluster standby $NODENAME
+
+    sleep 30
+
+    docker exec -it pg rm -f /var/lib/pgsql/tmp/PGSQL.lock
+
+    echo "pcs cluster unstandby $NODENAME ..."
+    pcs cluster unstandby $NODENAME
+
+    check_ha_status
+    if [ $? -ne 0 ]; then
+        echo "ERROR. Switch Failed."
+        return 1
+    else
+        echo "OK. Switch succeed."
+        return 0
+    fi
+}
+
+[ -f $WORK_DIR/conf/ha.conf ] && source $WORK_DIR/conf/ha.conf
+
+# What kind of command ？
+case "$1" in
+    failover)   failover;;
+
+    args_parse) args_parse $@;;
+
+    prepare)    prepare;;
+    
+    reset)      reset;;
+
+    help|usage|-h|--help) usage;;
+
+    recover)    recover $2;;
+
+    install)    install_all $@;;
+
+    config)     config $@;;
+
+    standalone) failover STANDALONE;;
+
+    enable)     enable $2;;
+
+    disable)    disable $2;;
+    
+    brain)      solve_split_brain;;
+    
+    show)       show_status;;
+    
+    switch-master-slave) switch;;
+    
+    setup)      setup $@;;
+
+    *)          usage;;
+
+esac

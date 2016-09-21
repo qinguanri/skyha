@@ -1,0 +1,117 @@
+#!/bin/sh
+#
+# Description: 
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global:
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
+
+source $WORK_DIR/conf/ha.conf
+#NFS_RPM_TAR="yum_drbd.tar"
+
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
+
+prepare() {
+    systemctl stop nfs-server.service
+
+    return 0
+}
+
+install() {
+    echo "installing nfs-server, please wait a minute ..."
+
+    cd $WORK_DIR/dependent
+
+    yum install -y --disablerepo=\* --enablerepo=Nfs nfs-utils rpcbind; sleep 1
+
+    if [ $? -ne 0 ]; then
+        echo "WARN. Install nfs-server rpms failed"
+    fi
+
+    systemctl enable rpcbind.service
+    systemctl start rpcbind.service
+
+    echo "" > /etc/exports
+    systemctl enable nfs-server.service
+    systemctl start nfs-server.service
+    
+    if [ $? -ne 0 ]; then
+        echo "ERROR. systemctl start nfs-server.service failed."
+        return 1
+    fi
+
+    return 0
+}
+
+failover() {
+    pcs -f resource_cfg resource create nfs-daemon nfsserver nfs_shared_infodir=/drbd/nfsshare/nfsinfo nfs_no_notify=true
+    pcs -f resource_cfg resource create nfs-root exportfs clientspec=* options=rw,sync,no_root_squash directory=/drbd/nfsshare/exports fsid=0
+    ## pcs -f resource_cfg resource create nfs-notify nfsnotify source_host=$vip_master
+
+    return 0
+}
+
+auto_recover() {
+    return 0
+}
+
+recover() {
+    #systemctl restart nfs-server.service
+    return 0
+}
+
+check_status() {
+    echo "check nfs-server status ..."
+    count=1
+    MAX=120
+    while [ $count -le $MAX ]
+    do
+        sleep 1
+
+        pcs cluster unstandby --all
+        crm_mon -Afr -1 | grep 'nfs-root' | grep Started
+        if [ $? -eq 0 ]; then
+            echo "OK. NFS is running correctly."
+            return 0
+        fi
+        clear
+        crm_mon -Afr -1
+        let "count++"
+    done
+    echo "ERROR. NFS is running incorrectly."
+    return 1
+}
+
+clean() {
+    return 0
+}
+
+case "$1" in
+    prepare)    prepare
+                exit $?;;
+
+    install)    install
+                exit $?;;
+
+    failover)   failover
+                exit $?;;
+
+    recover)    recover;;
+
+    clean)      clean
+                exit $?;;
+
+    status)     check_status;;
+
+    *)          $@
+                exit $?;;
+esac

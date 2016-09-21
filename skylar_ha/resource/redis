@@ -1,0 +1,222 @@
+#!/bin/sh
+#
+# Description: 
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
+
+. $WORK_DIR/conf/ha.conf
+
+REDIS_CLI_CMD="docker exec -i redis /usr/bin/redis-cli" 
+
+# Redis
+REDIS_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_redis*"`
+REDIS_IMAGE_NAME="skylar_redis"
+REDIS_CONTAINER="redis"
+REDIS_PORT="6379"
+REDIS_RECOVER_LOG="/var/log/redis_ha_auto_recover.log"
+
+redis_dir="/drbd/redis"
+
+###############################################################################
+
+source $WORK_DIR/conf/ha.conf
+
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
+
+###############################################################################
+
+prepare() {
+    docker images | grep "$REDIS_IMAGE_NAME"
+    if [ $? -ne 0 ]; then
+        echo "docker load < $REDIS_IMAGE_FILE. Please wait minutes..."
+        docker load < "$REDIS_IMAGE_FILE"
+        sleep 1
+    fi
+
+    return 0
+}
+
+install_redis() {
+    docker ps -a | grep $REDIS_CONTAINER
+    if [ $? -eq 0 ]; then
+        docker stop $REDIS_CONTAINER
+        docker rm $REDIS_CONTAINER
+    fi
+
+    docker run --name=$REDIS_CONTAINER -d --net=host --privileged=true $REDIS_IMAGE_NAME
+    if ! is_redis_run; then
+        echo "ERROR. Start redis failed."
+        return 1
+    fi
+
+    #if ! auto_recover; then
+    #    echo "ERROR. Set redis auto recover failed."
+    #    return 1
+    #fi
+
+    echo "OK. Install redis succeed."
+    return 0
+}
+
+is_redis_run() {
+    echo "Check redis running ..."
+
+    docker ps | grep $REDIS_CONTAINER
+    if [ $? -ne 0 ]; then
+        echo "Redis container is not running."
+        return 1
+    fi
+
+    TRY=1
+    MAX=30
+    while [ $TRY -lt $MAX ]
+    do
+        IS_ALIVE=`$REDIS_CLI_CMD PING`
+        if [ "$IS_ALIVE" == "PONG" ]; then
+            return 0
+        fi
+        sleep 1
+        let "TRY++"
+    done
+
+    echo "Redis is not running."
+    return 1
+}
+
+failover() {
+    pcs -f resource_cfg resource create redis docker image=skylar_redis:latest \
+        run_opts="--restart=always --net=host --privileged=true -v $redis_dir:/var/lib/redis/" \
+        name="redis" monitor_cmd="ps -ef | grep redis| grep -v grep >/dev/null" \
+        op start timeout="60s" interval="0s" on-fail="restart" \
+        op monitor timeout="60s" interval="4s" on-fail="restart" \
+        op monitor timeout="60s" interval="3s" on-fail="restart" role="Master" \
+        op promote timeout="60s" interval="0s" on-fail="restart" \
+        op demote timeout="60s" interval="0s" on-fail="stop" \
+        op stop timeout="60s" interval="0s" on-fail="block"
+
+    return $?
+}
+
+check_ha_status() {
+    return 0
+}
+
+recover() {
+    systemctl status docker.service
+    if [ $? -ne 0 ]; then
+        systemctl start docker.service
+        sleep 2
+    fi
+
+    backup_data
+
+    systemctl status pacemaker.service
+    if [ $? -ne 0 ]; then
+        systemctl start pacemaker.service
+        sleep 2
+    fi
+
+    NODENAME=$HOSTNAME
+    pcs cluster unstandby $NODENAME
+
+    return $?
+}
+
+backup_data() {
+    clear
+    echo "backup redis data ..."
+    mkdir -p $data_dir/recover/redis/redis
+    cd $data_dir/recover/redis
+    
+    count=`ls -lt $data_dir/recover/redis | wc -l`
+    while [ "$count" -gt 5 ]
+    do
+        rm -f $(ls -lt $data_dir/recover/redis| tail -1| awk {'print $9'})
+        count=`ls -lt $data_dir/recover/redis | wc -l`
+    done
+
+    timestamp=`date "+%Y%m%d%H%M%S"`
+    filename="redis.$timestamp.tar"
+    mkdir -p /drbd
+    losetup /dev/loop9 $data_dir/data.img
+    if [ $? -eq 0 ]; then
+        mount /dev/drbd1 /drbd
+        cp -rf /drbd/redis $data_dir/recover/redis/redis
+        cd $data_dir/recover/redis
+        tar cvf $filename redis --remove-files
+        gzip $data_dir/recover/redis/$filename
+        rm -rf $data_dir/recover/redis/redis
+        umount /dev/drbd1
+    else
+        peer_ip="$master_ip"
+        if [ "$my_ip" == "$master_ip" ]; then
+            peer_ip="$slave_ip"
+        fi
+        echo "backup data from peer host."
+        ssh root@$peer_ip "mkdir -p $data_dir/recover/redis/redis;cp -rf /drbd/redis $data_dir/recover/redis/redis"
+        ssh root@$peer_ip "cd $data_dir/recover/redis;tar cvf $filename redis --remove-files"
+        ssh root@$peer_ip "gzip $data_dir/recover/redis/$filename"
+        scp root@$peer_ip:$data_dir/recover/redis/"$filename.gz" $data_dir/recover/redis
+    fi
+
+    rm -rf $data_dir/recover/redis/redis
+    echo "Backup redis data finished."   
+}
+
+auto_recover() {
+    if [ ! -f /etc/rc.local ]; then
+        echo "#!/bin/sh" > /etc/rc.local
+    fi
+
+    cat /etc/rc.local | grep 'skyha recover redis incr'
+    if [ $? -ne 0 ]; then
+        echo "$WORK_DIR/skyha recover redis incr>> $REDIS_RECOVER_LOG" >> /etc/rc.local
+    fi
+
+    chmod +x /etc/rc.local /etc/rc.d/rc.local
+
+    return 0
+}
+
+clean() {
+    return 0
+}
+
+source $WORK_DIR/conf/ha.conf
+
+case "$1" in
+    prepare)    prepare
+                exit $?;;
+
+    install)    install_redis
+                exit $?;;
+
+    failover)   failover
+                exit $?;;
+
+    recover)    recover
+                exit $?;;
+
+    auto_recover)    auto_recover
+                exit $?;;
+
+    status)     check_ha_status
+                exit $?;;
+
+    clean)      clean
+                exit $?;;
+
+    *)          $@
+                exit $?;;
+esac

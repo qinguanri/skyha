@@ -1,0 +1,350 @@
+#!/bin/sh
+#
+# Description: 
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global:
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
+
+source $WORK_DIR/conf/ha.conf
+DRBD_RPM_TAR="yum_drbd.tar"
+
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
+
+prepare() {
+    if [ "$my_ip" == "$master_ip" ]; then
+        hostnamectl set-hostname "$master_hostname"
+    else
+        hostnamectl set-hostname "$slave_hostname"
+    fi
+    mkdir -p $data_dir
+
+    drbdadm secondary all
+    drbdadm down skydata
+    losetup -d /dev/loop9
+
+    free_size=`df $data_dir | grep '/' | awk {'print $4'}`
+    let free_size=$free_size/1000
+    if [ $free_size -lt $drbd_size ]; then
+        echo "ERROR. There is not enough space for drbd at $my_ip."
+        return 1
+    fi
+
+    return 0
+}
+
+install() {
+	echo "installing drbd, please wait a minute ..."
+
+    yum install -y --disablerepo=\* --enablerepo=Drbd kmod-drbd84; sleep 2
+    yum install -y --disablerepo=\* --enablerepo=Drbd drbd84-utils; 
+
+    soft_list=("kmod-drbd84" "drbd84-utils")
+
+    for item in ${soft_list[@]}
+    do
+        installed=`yum list installed | grep "$item" |grep -v grep | wc -l`
+        if [ "$installed" == "0" ]; then
+            echo "ERROR. some soft has not been installed. soft name:$item"
+            return 1
+        fi
+    done
+
+    rm -f $data_dir/drbd.img
+    echo "create virtual block device ... "
+    dd if=/dev/zero of=$data_dir/drbd.img bs=1M count=0 seek=$drbd_size
+
+    ls -l $data_dir/drbd.img
+    if [ $? -ne 0 ]; then
+        echo "ERROR. create virtual block device failed."
+        return 1
+    fi
+
+    losetup_img
+
+    sed -i 's/usage-count yes/usage-count no/g' /etc/drbd.d/global_common.conf
+    cat /etc/drbd.d/global_common.conf
+
+    echo "resource skydata {
+    protocol C;
+    meta-disk internal;
+    device /dev/drbd1;
+    syncer {
+        verify-alg sha1;
+    }
+    net {
+        allow-two-primaries;
+    }
+    on db1 {
+        disk /dev/loop9;
+        address $master_ip:7789;
+    }
+    on db2 {
+        disk /dev/loop9;
+        address $slave_ip:7789;
+    }
+}" > /etc/drbd.d/skydata.res
+
+    cat /etc/drbd.d/skydata.res
+
+    echo "semanage permissive -a drbd_t, please wait seconds ..."
+    semanage permissive -a drbd_t
+
+    drbdadm create-md skydata
+
+    modprobe drbd
+
+    drbdadm up skydata
+
+    return 0
+}
+
+set_master() {
+    cat /proc/drbd | grep 'cs:Connected' | grep 'ro:Secondary/Secondary'
+    if [ $? -ne 0 ]; then
+        echo "ERROR. drbd are not connected between master and slave."
+        return 1
+    fi
+
+    drbdadm primary --force skydata
+
+    try=0
+    while [ $try -le 3600 ]
+    do
+        cat /proc/drbd | grep 'cs:Connected' | grep 'ds:UpToDate/UpToDate'
+        if [ $? -ne 0 ]; then
+            losetup /dev/loop9 $drbd_dir/drbd.img
+        else
+            break
+        fi
+        clear
+        cat /proc/drbd
+        echo "It may take minutes. please wait."
+        sleep 1
+        let "try++"
+    done
+
+    mkfs.xfs /dev/drbd1
+
+    mkdir -p /drbd
+    mount /dev/drbd1 /drbd
+    cd /
+
+    mkdir -p /drbd/nfsshare
+    mkdir -p /drbd/nfsshare/exports
+    chmod 777 /drbd/nfsshare
+    mkdir -p /drbd/test
+    touch /drbd/test/tmp
+    umount /dev/drbd1
+    drbdadm secondary skydata
+
+    cat /proc/drbd | grep 'cs:Connected'
+    if [ $? -ne 0 ]; then
+        echo "ERROR. drbd are not connected between master and slave."
+        return 1
+    fi
+
+    echo "Set drbd master ok."
+}
+
+failover() {
+    echo "config failover for drbd ..."
+
+    echo "config drbd ..."
+    pcs -f resource_cfg resource create skydata ocf:linbit:drbd drbd_resource=skydata op monitor interval=60s
+    pcs -f resource_cfg resource master drbd-cluster skydata master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true
+
+    sleep 2
+    echo "config skyfs ..."
+    pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs"
+
+    #if ! auto_recover; then
+    #    echo "ERROR. Set drbd auto recover failed."
+    #    return 1
+    #fi
+
+    return $?
+}
+
+auto_recover() {
+    if [ ! -f /etc/rc.local ]; then
+        echo "#!/bin/sh" > /etc/rc.local
+    fi
+
+    cat /etc/rc.local | grep 'skyha recover drbd incr'
+    if [ $? -ne 0 ]; then
+        DRBD_RECOVER_LOG=/var/log/drbd_auto_recover.log
+        echo "$WORK_DIR/skyha recover drbd incr>> $DRBD_RECOVER_LOG" >> /etc/rc.local
+    fi
+
+    chmod +x /etc/rc.local /etc/rc.d/rc.local
+
+    return 0
+}
+
+recover() {
+    systemctl status docker.service
+    if [ $? -ne 0 ]; then
+        systemctl start docker.service
+        sleep 2
+    fi
+
+    systemctl status pacemaker.service
+    if [ $? -ne 0 ]; then
+        systemctl start pacemaker.service
+        sleep 2
+    fi
+
+    NODENAME=$HOSTNAME
+    pcs cluster unstandby $NODENAME
+
+    check_status
+    if [ $? -ne 0 ]; then
+        echo "WARN. DRBD status is incorrect. Try to solve split brain on slave."
+        solve_split_brain
+    fi
+
+    return $?
+}
+
+losetup_img() {
+    try=0
+    while [ $try -le 5 ]
+    do
+        losetup -a | grep 'drbd.img'
+        if [ $? -ne 0 ]; then
+            losetup /dev/loop9 $data_dir/drbd.img
+        else
+            break
+        fi
+
+        sleep 1
+        let "try++"
+    done
+}
+
+solve_split_brain() {
+    cat /proc/drbd| grep 'Primary' 
+    if [ $? -eq 0 ]; then
+        echo "WARN. My drbd role is primary. This command should not be execute at $my_ip."
+        return 0
+    fi
+
+    ip addr | grep $vip_master
+    if [ $? -eq 0 ]; then
+        echo "WARN. My role is master. This command should not be execute at $my_ip."
+        return 0
+    fi
+
+    pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
+    if [ $pacemaker_proc -gt 0 ]; then
+        kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
+    fi
+    systemctl stop pacemaker.service
+
+    losetup_img
+
+    drbdadm up skydata
+
+    sleep 5
+    cat /proc/drbd| grep 'Primary' | grep 'Secondary'
+    if [ $? -eq 0 ]; then
+        echo "OK. drbd master and slave are running."
+        systemctl start pacemaker.service
+        return 0
+    fi
+
+    drbdadm secondary all
+    drbdadm disconnect all
+    drbdadm -- --discard-my-data connect all
+
+    systemctl start pacemaker.service
+
+    peer_ip="$master_ip"
+    if [ "$my_ip" == "$master_ip" ]; then
+        peer_ip="$slave_ip"
+    fi
+
+    ssh root@$peer_ip "drbdadm primary all;drbdadm disconnect all;drbdadm connect all"
+
+    sleep 2
+    
+    try=0
+    while [ $try -le 3600 ]
+    do
+        cat /proc/drbd | grep 'cs:Sync' | grep 'Secondary' | grep 'Primary'
+        if [ $? -ne 0 ]; then
+            echo "ERROR. DRBD status is not connect"
+            cat /proc/drbd
+            return 1
+        fi
+
+        clear
+        cat /proc/drbd
+        echo "It may take minutes. please wait."
+        sleep 1
+        let "try++"
+    done
+}
+
+check_status() {
+    echo "check drbd status ..."
+    count=1
+    MAX=60
+    while [ $count -le $MAX ]
+    do
+        sleep 1
+        pcs cluster unstandby --all
+        cat /proc/drbd| grep 'Primary' | grep 'Secondary'
+        if [ $? -eq 0 ]; then
+            echo "OK. drbd master and slave are running."
+            return 0
+        fi
+        let "count++"
+    done
+
+    cat /proc/drbd
+    echo "ERROR. drbd status is wrong. You should need to fix it."
+    return 1
+}
+
+clean() {
+	return 0
+}
+
+uninstall() {
+    yum remove -y kmod-drbd84
+    yum remove -y drbd84-utils
+}
+
+case "$1" in
+    prepare)    prepare
+                exit $?;;
+
+    install)    install
+                exit $?;;
+
+    failover)   failover
+                exit $?;;
+
+    recover)    recover;;
+
+    clean)      clean
+                exit $?;;
+
+    status)     check_status;;
+    
+    brain)      solve_split_brain;;
+
+    *)          $@
+                exit $?;;
+esac

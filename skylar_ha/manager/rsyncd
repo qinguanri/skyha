@@ -1,0 +1,100 @@
+#!/bin/sh
+#
+# Description: 
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global:
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
+RSYNCD_PORTS=("873/tcp")
+
+###############################################################################
+
+
+prepare() {
+    if [ ! -n "$data_dir" ]; then
+        echo "ERROR. var data_dir is null"
+        return 1
+    fi
+
+    return 0
+}
+
+install_rsyncd() {
+    yum install -y --disablerepo=\* --enablerepo=Pacemaker rsync; sleep 2
+    if ! yum list installed | grep rsync; then
+        echo "ERROR. yum install rsync failed."
+        return 1
+    fi
+
+    echo "RSYNC_ENABLE=true" > /etc/default/rsync
+    echo "beanstalkd:passwd
+postgres:passwd
+root:passwd" > /etc/rsync.secret
+    echo "passwd" > /etc/rsync_pg.secret
+
+    echo "log file = /var/log/rsyncd
+
+[pg_data]
+comment = public archive
+path = $data_dir/pg
+max connections = 10
+read only = yes
+list = yes
+uid = root
+gid = root
+auth users = root
+secrets file = /etc/rsync.secret
+strict modes = yes
+ignore errors = yes
+ignore nonreadable = yes
+transfer logging = no
+timeout = 600
+refuse options = checksum dry-run
+dont compress = *.gz *.tgz *.zip *.z *.rpm *.iso *.bz2 *.tbz" > /etc/rsyncd.conf
+
+    chmod 600 /etc/rsync_pg.secret
+    chown root:root /etc/rsync.secret
+    chmod 600 /etc/rsync.secret
+
+    if ! systemctl start rsyncd.service; then
+        echo "ERROR. systemctl start rsyncd.service failed."
+        return 1
+    fi
+
+    if ! systemctl enable rsyncd.service; then
+        echo "ERROR. systemctl enable rsyncd.service failed."
+        return 1
+    fi
+
+    return 0
+}
+
+clean() {
+    echo "Remove rsyncd's configs ..."
+    rm -f /etc/rsync_pg.secret
+    rm -f /etc/rsync.secret
+    rm -f /etc/rsyncd.conf
+
+    echo "Clean rsyncd finished."
+}
+
+source $WORK_DIR/conf/ha.conf
+
+case "$1" in
+    prepare)    prepare
+                exit $?;;
+
+    install)    install_rsyncd
+                exit $?;;
+
+    clean)      clean
+                exit $?;;
+
+    *)          $@
+                exit $?;;
+esac

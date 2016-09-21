@@ -1,0 +1,120 @@
+#!/bin/sh
+#
+# Description: 
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global:
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
+PCMK_PORTS=("22/tcp" "2224/tcp" "3121/tcp" "21064/tcp" "873/tcp" "5404/udp" "5405/udp")
+
+###############################################################################
+
+
+prepare() {
+    source $WORK_DIR/conf/ha.conf
+
+    if [ -n "$master_ip" ]  && [ -n "$slave_ip" ] \
+        && $WORK_DIR/include/common "check_ip_valid" $master_ip \
+        && $WORK_DIR/include/common "check_ip_valid" $slave_ip; then
+        echo "master_ip and slave_ip is correct"
+    else
+        echo "ERROR. master_ip or slave_ip invalid."
+        exit 1
+    fi
+
+    cat /etc/hosts | grep "$master_ip $master_hostname"
+    if [ $? -ne 0 ]; then
+        echo "$master_ip $master_hostname" >> /etc/hosts   
+    fi
+
+    cat /etc/hosts | grep "$slave_ip $slave_hostname"
+    if [ $? -ne 0 ]; then
+        echo "$slave_ip $slave_hostname" >> /etc/hosts
+    fi
+
+    echo "clean pacemaker's configs and corosync's configs ..."
+    [ -f /var/lib/pacemaker/cib/cib.xml ] && rm -rf /var/lib/pacemaker/cib/cib*
+    [ -f /etc/corosync/corosync.conf ] && rm -f /etc/corosync/corosync.conf
+    
+    systemctl stop pacemaker.service
+
+    return 0
+}
+
+install_pacemaker() {
+    echo "installing pacemaker, please wait a minute ..."
+    yum install -y --disablerepo=\* --enablerepo=Pacemaker pacemaker; sleep 2
+    yum install -y --disablerepo=\* --enablerepo=Pacemaker pcs; sleep 2
+    yum install -y --disablerepo=\* --enablerepo=Pacemaker psmisc; sleep 2
+    yum install -y --disablerepo=\* --enablerepo=Pacemaker policycoreutils-python; sleep 2
+
+    soft_list=("pacemaker" "pcs" "psmisc" "policycoreutils")
+
+    for item in ${soft_list[@]}
+    do
+        installed=`yum list installed | grep "$item" |grep -v grep | wc -l`
+        if [ "$installed" == "0" ]; then
+            echo "ERROR. some soft has not been installed. soft name:$item"
+            return 1
+        fi
+    done
+
+    # remove old resource file. I have rewrited the 'pgsql' and 'docker'.
+    HEARTBEAT_RSC_DIR="/usr/lib/ocf/resource.d/heartbeat"
+    rm -f $HEARTBEAT_RSC_DIR/pgsql $HEARTBEAT_RSC_DIR/docker
+
+    cp $WORK_DIR/dependent/pgsql $HEARTBEAT_RSC_DIR/pgsql
+    cp $WORK_DIR/dependent/docker $HEARTBEAT_RSC_DIR/docker
+
+    chmod 755 $HEARTBEAT_RSC_DIR/pgsql $HEARTBEAT_RSC_DIR/docker
+
+    systemctl start pcsd.service
+    systemctl enable pcsd.service
+    echo hacluster | passwd hacluster --stdin
+
+    if ! ps -ef | grep pcs; then
+        echo "ERROR. pcs process run error."
+        return 1
+    fi
+
+    return 0
+}
+
+clean() {
+    echo "Stop pacemaker ..."
+    systemctl stop pacemaker.service
+    systemctl stop corosyncd.service
+    systemctl stop pcsd.service
+
+    echo "Remove pacemaker's configs ..."
+    rm -rf /var/lib/pacemaker/cib/cib*
+    rm -f /etc/corosync/corosync.conf
+
+    echo "Remove log files"
+    rm -rf /var/log/cluster/corosync*
+    rm -rf /var/log/pacemaker*
+    rm -rf /var/log/pcsd/pcsd*
+
+    echo "Clean pacemaker finished."
+}
+
+source $WORK_DIR/conf/ha.conf
+
+case "$1" in
+    prepare)    prepare
+                exit $?;;
+
+    install)    install_pacemaker
+                exit $?;;
+
+    clean)      clean
+                exit $?;;
+
+    *)          $@
+                exit $?;;
+esac

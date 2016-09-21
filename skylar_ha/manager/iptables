@@ -1,0 +1,107 @@
+#!/bin/sh
+#
+# Description: 
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global:
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
+source $WORK_DIR/conf/ha.conf
+
+tcp_ports_default=("21" "22" "80" "443" "2224" "3121" "21064" "873" "11300" "5432" "6379" "7789" "111" "892" "2049")
+udp_ports_default=("5404" "5405" "111" "892")
+: ${tcp_ports=${tcp_ports_default[@]}}
+: ${udp_ports=${udp_ports_default[@]}}
+
+###############################################################################
+IPTABLES_RPM_TAR="yum_iptables.tar"
+
+prepare() {
+    source $WORK_DIR/conf/ha.conf
+
+    if [ ! -f $WORK_DIR/dependent/$IPTABLES_RPM_TAR ]; then
+        echo "ERROR. Can not find file: $WORK_DIR/dependent/$IPTABLES_RPM_TAR"
+        return 1
+    fi
+
+    return 0
+}
+
+install() {
+    echo "installing iptables services, please wait a minute ..."
+    yum install -y --disablerepo=\* --enablerepo=Iptables iptables-services; sleep 2
+
+    soft_list=("iptables")
+
+    for item in ${soft_list[@]}
+    do
+        installed=`yum list installed | grep "$item" |grep -v grep | wc -l`
+        if [ "$installed" == "0" ]; then
+            echo "ERROR. some soft has not been installed. soft name:$item"
+            return 1
+        fi
+    done
+
+    setenforce 0
+    sed -i.bak "s/SELINUX=enforcing/SELINUX=permissive/g" /etc/selinux/config
+
+    systemctl stop firewalld.service
+    systemctl mask firewalld.service
+    systemctl disable firewalld.service
+
+    iptables -L -n 
+    
+    iptables -A INPUT -i lo -j ACCEPT
+
+    # if not exist rules, insert it
+    for p in ${tcp_ports[@]}
+    do
+        iptables -C INPUT -p tcp --dport $p -j ACCEPT 
+        [ $? -ne 0 ] && iptables -I INPUT -p tcp --dport $p -j ACCEPT
+    done
+
+    for p in ${udp_ports[@]}
+    do
+        iptables -C INPUT -p tcp --dport $p -j ACCEPT
+        [ $? -ne 0 ] && iptables -I INPUT -p udp --dport $p -j ACCEPT
+    done
+
+    #允许vrrp
+    iptables -C INPUT -p vrrp -j ACCEPT
+    [ $? -ne 0 ] && iptables -I INPUT -p vrrp -j ACCEPT
+
+    service iptables save
+    systemctl enable iptables.service
+    systemctl restart iptables.service
+
+    if [ $? -ne 0 ]; then
+        echo "ERROR. start iptables failed."
+        return 1
+    fi
+
+    return 0
+}
+
+clean() {
+    return 0
+}
+
+source $WORK_DIR/conf/ha.conf
+
+case "$1" in
+    prepare)    prepare
+                exit $?;;
+
+    install)    install
+                exit $?;;
+
+    clean)      clean
+                exit $?;;
+
+    *)          $@
+                exit $?;;
+esac
