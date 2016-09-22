@@ -202,15 +202,19 @@ failover() {
     pcs -f resource_cfg constraint colocation add master-group with master pgsql-cluster INFINITY
     
 
-    ## HA组件启动顺序约束：pg-cluster-> vip(master-group) -> drbd-cluster -> skyfs & redis & bstkd & nfs
-    pcs -f resource_cfg constraint order promote pgsql-cluster then start master-group symmetrical=false score=INFINITY
-    pcs -f resource_cfg constraint order demote pgsql-cluster then stop master-group symmetrical=false score=0
-    pcs -f resource_cfg constraint order start master-group then promote drbd-cluster symmetrical=false score=INFINITY
+    ## HA组件启动顺序约束：
+    
     pcs -f resource_cfg constraint order promote drbd-cluster then start skyfs
-    pcs -f resource_cfg constraint order skyfs then bstkd
-    pcs -f resource_cfg constraint order skyfs then redis
-    pcs -f resource_cfg constraint order skyfs then nfs-daemon
-    pcs -f resource_cfg constraint order skyfs then nfs-root
+    pcs -f resource_cfg constraint order start skyfs then master-group
+
+    pcs -f resource_cfg constraint order start master-group then promote pgsql-cluster symmetrical=false score=INFINITY
+    pcs -f resource_cfg constraint order demote pgsql-cluster then stop master-group symmetrical=false score=0
+    
+    pcs -f resource_cfg constraint order master-group then bstkd
+    pcs -f resource_cfg constraint order master-group then redis
+    pcs -f resource_cfg constraint order master-group then nfs-daemon
+    pcs -f resource_cfg constraint order master-group then nfs-root
+
     pcs -f resource_cfg constraint order nfs-daemon then nfs-root
 
     pcs cluster cib-push resource_cfg
