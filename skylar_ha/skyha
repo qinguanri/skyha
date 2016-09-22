@@ -605,18 +605,13 @@ show_status() {
     fi
 
     if [ "$my_ip" == "$master_ip" ]; then
-        master_dir_recover_info=`du -sh $data_dir/recover`
-        master_dir_pgdata_info=`du -sh $data_dir/pg`
-        master_img_drbd_size=`ls -lh $data_dir/drbd.img |awk {'print $5'}`
+        master_dir_info=`du -sh $data_dir/*`
 
         res=`ping -c 1 "$slave_ip"`
         if [ "$?" -ne 0 ]; then
             echo "ERROR. Ping $slave_ip failed."
         else
-            slave_dir_recover_info=`ssh root@$slave_ip "du -sh $data_dir/recover"`
-            slave_dir_pgdata_info=`ssh root@$slave_ip "du -sh $data_dir/pg"`
-            slave_img_drbd_size=`ssh root@$slave_ip "ls -lh $data_dir/drbd.img"`
-            slave_img_drbd_size=`echo $slave_img_drbd_size| awk {'print $5'}`
+            slave_dir_info=`ssh root@$slave_ip "du -sh $data_dir/*"`
         fi
     fi
 
@@ -625,15 +620,10 @@ show_status() {
         if [ "$?" -ne 0 ]; then
             echo "ERROR. Ping $master_ip failed."
         else
-            master_dir_recover_info=`ssh root@$master_ip "du -sh $data_dir/recover"`
-            master_dir_pgdata_info=`ssh root@$master_ip "du -sh $data_dir/pg"`
-            master_img_drbd_size=`ssh root@$master_ip "ls -lh $data_dir/drbd.img"`
-            master_img_drbd_size=`echo $master_img_drbd_size|awk {'print $5'}`
+            master_dir_info=`ssh root@$master_ip "du -sh $data_dir/*"`
         fi
 
-        slave_dir_recover_info=`du -sh $data_dir/recover`
-        slave_dir_pgdata_info=`du -sh $data_dir/pg`
-        slave_img_drbd_size=`ls -lh $data_dir/drbd.img |awk {'print $5'}`
+        slave_dir_info=`du -sh $data_dir/*`
     fi
 
     echo "
@@ -644,13 +634,9 @@ Base Info:
 
 Space Info:
 * Node $master_hostname:
-   + $master_dir_recover_info
-   + $master_dir_pgdata_info
-   + $master_img_drbd_size     $data_dir/drbd.img
+$master_dir_info
 * Node $slave_hostname:
-   + $slave_dir_recover_info
-   + $slave_dir_pgdata_info
-   + $slave_img_drbd_size      $data_dir/drbd.img
+$slave_dir_info
 
 NFS Info:
 `showmount -e $vip_master`
