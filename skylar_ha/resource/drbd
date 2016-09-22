@@ -120,7 +120,7 @@ set_master() {
     try=0
     while [ $try -le 3600 ]
     do
-        cat /proc/drbd | grep 'cs:Connected' | grep 'ds:UpToDate/UpToDate'
+        cat /proc/drbd | grep 'cs:Connected' | grep 'ds:UpToDate/UpToDate' | grep 'Primary'
         if [ $? -ne 0 ]; then
             losetup /dev/loop9 $drbd_dir/drbd.img
         else
@@ -128,10 +128,12 @@ set_master() {
         fi
         clear
         cat /proc/drbd
-        echo "It may take minutes. please wait."
+        echo "Initialize DRBD's data. It may take minutes. please wait..."
         sleep 1
         let "try++"
     done
+
+    echo "OK. Data status is uptodata."
 
     mkfs.xfs /dev/drbd1
 
@@ -299,7 +301,7 @@ solve_split_brain() {
 check_status() {
     echo "check drbd status ..."
     count=1
-    MAX=60
+    MAX=120
     while [ $count -le $MAX ]
     do
         sleep 1
