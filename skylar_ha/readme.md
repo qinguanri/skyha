@@ -155,7 +155,7 @@
 
 ## 四、故障修复
 
-1. 首先做好数据备份。然后定位故障，在故障主机上使用命令：```crm_mon -Afr -1```， 查看当前双机热备状态，检查是哪个组件异常。使用命令：```docker ps```查看容器运行状态。使用命令```cat /proc/drbd```命令，检查drbd运行状态。
+1. 首先做好数据备份。然后定位故障，在故障主机上使用命令：```skyha show```， 查看当前双机热备状态，检查是哪个组件异常。使用命令：```docker ps```查看容器运行状态。使用命令```cat /proc/drbd```命令，检查drbd运行状态。
 
     ~~~
     # /opt/skylar_ha/skyha show
@@ -169,17 +169,17 @@
     # /opt/skylar_ha/skyha recover
     ~~~
 
-3. 修复故障后，在故障节点上，执行```crm_mon -Afr -1```命令查看主备状态。如果这时故障的主机处于standby状态，执行命令：```pcs cluster unstandby --all```,将节点设为Online。
+3. 修复故障后，在故障节点上，执行```skyha show```命令查看主备状态。如果这时故障的主机处于standby状态，执行命令：```pcs cluster unstandby --all```,将节点设为Online。
         
     ~~~
     #  /opt/skylar_ha/skyha show
     # pcs cluster unstandby --all
     ~~~
 
-4. 使用命令：```crm_mon -Afr -1```,检查双机热备状态。
+4. 使用命令：```skyha show```,检查双机热备状态。
     
     ~~~
-    # crm_mon -Afr -1
+    # /opt/skylar_ha/skyha show
     ~~~
 
 5. 检查drbd同步状态。
@@ -255,7 +255,7 @@
 
 ### 2. 故障修复时，有哪些命令可以帮助快速定位？
 
-1. ```crm_mon -Afr -1```. 查看双机热备状态。处于```offline```、```pending```、```standby```的主机状态都是异常状态。
+1. ```skyha show```. 查看双机热备状态。处于```offline```、```pending```、```standby```的主机状态都是异常状态。
 2. ```docker ps ```。查看容器状态。
 
 ### 3. DRBD出现脑裂，DRBD同步异常，如何处理？
