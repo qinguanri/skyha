@@ -134,7 +134,11 @@ failover() {
 
     systemctl stop pacemaker.service
     rm -rf /var/lib/pacemaker/cib/cib*
-    rm -f /etc/corosync/corosync.conf
+    
+    if [ "$mode" != "STANDALONE" ]; then
+        rm -f /etc/corosync/corosync.conf
+    fi
+
     systemctl restart pcsd.service
     systemctl enable pcsd.service
     sleep 5
