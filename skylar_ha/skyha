@@ -729,7 +729,7 @@ case "$1" in
     
     setup)      setup $@;;
 
-    version)    version;;
+    version|-v|--version)    version;;
 
     *)          usage;;
 
