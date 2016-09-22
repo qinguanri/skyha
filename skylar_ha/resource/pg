@@ -51,8 +51,7 @@ prepare() {
 
     if [ -d "$data_dir/pg" ]; then
         echo "Backup pg's old data from $data_dir/pg to $PG_BAK"
-        mkdir -p "$PG_BAK"
-        cp -rf "$data_dir/pg" "$PG_BAK"
+        backup_data
         rm -rf "$data_dir/pg"
     fi
 
