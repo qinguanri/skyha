@@ -691,6 +691,10 @@ switch() {
     fi
 }
 
+version() {
+    echo "version:1.0.0"
+}
+
 [ -f $WORK_DIR/conf/ha.conf ] && source $WORK_DIR/conf/ha.conf
 
 # What kind of command ？
@@ -724,6 +728,8 @@ case "$1" in
     switch-master-slave) switch;;
     
     setup)      setup $@;;
+
+    version)    version;;
 
     *)          usage;;
 
