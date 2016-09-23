@@ -46,7 +46,7 @@ install() {
     systemctl mask firewalld.service
     systemctl disable firewalld.service
 
-    iptables -L -n 
+    iptables -L -n
     
     iptables -A INPUT -i lo -j ACCEPT
 
