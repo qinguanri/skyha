@@ -218,8 +218,8 @@ failover() {
 
 
     ## HA 首次启动位置约束
-    pcs -f resource_cfg constraint location drbd-cluster prefers db2=500
-    pcs -f resource_cfg constraint location drbd-cluster prefers db1=0
+    pcs -f resource_cfg constraint location drbd-cluster prefers $master_hostname=500
+    pcs -f resource_cfg constraint location drbd-cluster prefers $slave_hostname=0
 
     pcs cluster cib-push resource_cfg
     rm -f resource_cfg
