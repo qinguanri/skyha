@@ -1,5 +1,11 @@
-# 建行PG+Redis+Bstlkd高可用部署文档
+# PG+Redis+Bstlkd高可用部署
 -------
+
+本文集成pacemaker、drbd、docker、nfs，搭建pg、redis、beanstalkd容器的双机热备。
+
+* pacemaker是监控、调度容器运行的核心组件
+* drbd用于实现主从数据同步
+* nfs用于共享数据
 
 ## 一、安装步骤
 -------
