@@ -44,7 +44,27 @@ check_ip_valid() {
     return 0
 }
 
+check_repo() {
+    echo "Check repo whether is exist..."
+    repo_list=$@
+
+    for item in ${repo_list[@]}
+    do
+        ls -lh /etc/yum.repos.d/"$item"
+        if [ $? -ne 0 ]; then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
 create_repo() {
+    check_repo "CentOS-Pacemaker.repo"
+    if [ $? -eq 0 ]; then
+        return 0
+    fi
+
     ###############################################################################
     # create repo for pacemaker
     if [ ! -f $WORK_DIR/dependent/$PCMK_RPM_TAR ]; then
