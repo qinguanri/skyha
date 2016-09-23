@@ -14,7 +14,6 @@ RSYNCD_PORTS=("873/tcp")
 
 ###############################################################################
 
-
 prepare() {
     if [ ! -n "$data_dir" ]; then
         echo "ERROR. var data_dir is null"

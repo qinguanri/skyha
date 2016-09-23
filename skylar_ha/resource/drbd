@@ -161,11 +161,6 @@ failover() {
     echo "config skyfs ..."
     pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs"
 
-    #if ! auto_recover; then
-    #    echo "ERROR. Set drbd auto recover failed."
-    #    return 1
-    #fi
-
     return $?
 }
 

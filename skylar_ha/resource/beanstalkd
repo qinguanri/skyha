@@ -50,11 +50,6 @@ install_bstkd() {
         return 1
     fi
 
-    #if ! auto_recover; then
-    #    echo "ERROR. Set beanstalkd auto recover failed."
-    #    return 1
-    #fi
-
     echo "OK. Install beanstalkd succeed."
     return 0
 }

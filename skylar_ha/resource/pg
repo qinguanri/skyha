@@ -96,14 +96,6 @@ install_pg() {
         echo "Install pg failed."
         return 1
     fi
-
-    #
-    # enable auto recover
-    #
-    #if ! auto_recover; then
-    #    echo "ERROR. Enable auto recover failed."
-    #    exit 1
-    #fi
 }
 
 install_pg_slave() {

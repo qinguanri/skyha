@@ -60,11 +60,6 @@ install_redis() {
         return 1
     fi
 
-    #if ! auto_recover; then
-    #    echo "ERROR. Set redis auto recover failed."
-    #    return 1
-    #fi
-
     echo "OK. Install redis succeed."
     return 0
 }
