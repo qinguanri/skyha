@@ -31,10 +31,9 @@ install() {
 
     cd $WORK_DIR/dependent
 
-    yum install -y --disablerepo=\* --enablerepo=Nfs nfs-utils rpcbind; sleep 1
-
+    $WORK_DIR/include/common check_install nfs-utils rpcbind
     if [ $? -ne 0 ]; then
-        echo "WARN. Install nfs-server rpms failed"
+        yum install -y --disablerepo=\* --enablerepo=Nfs nfs-utils rpcbind; sleep 1
     fi
 
     systemctl enable rpcbind.service

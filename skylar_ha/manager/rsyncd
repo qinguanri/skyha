@@ -25,12 +25,12 @@ prepare() {
 }
 
 install_rsyncd() {
-    yum install -y --disablerepo=\* --enablerepo=Pacemaker rsync; sleep 2
-    if ! yum list installed | grep rsync; then
-        echo "ERROR. yum install rsync failed."
-        return 1
+    echo "Install rsyncd ..."
+    $WORK_DIR/include/common check_install rsync
+    if [ $? -ne 0 ]; then
+        yum install -y --disablerepo=\* --enablerepo=Pacemaker rsync; sleep 2
     fi
-
+    
     echo "RSYNC_ENABLE=true" > /etc/default/rsync
     echo "beanstalkd:passwd
 postgres:passwd

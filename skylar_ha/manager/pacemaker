@@ -48,21 +48,13 @@ prepare() {
 
 install_pacemaker() {
     echo "installing pacemaker, please wait a minute ..."
-    yum install -y --disablerepo=\* --enablerepo=Pacemaker pacemaker; sleep 2
-    yum install -y --disablerepo=\* --enablerepo=Pacemaker pcs; sleep 2
-    yum install -y --disablerepo=\* --enablerepo=Pacemaker psmisc; sleep 2
-    yum install -y --disablerepo=\* --enablerepo=Pacemaker policycoreutils-python; sleep 2
-
-    soft_list=("pacemaker" "pcs" "psmisc" "policycoreutils")
-
-    for item in ${soft_list[@]}
-    do
-        installed=`yum list installed | grep "$item" |grep -v grep | wc -l`
-        if [ "$installed" == "0" ]; then
-            echo "ERROR. some soft has not been installed. soft name:$item"
-            return 1
-        fi
-    done
+    $WORK_DIR/include/common check_install pacemaker pcs psmisc policycoreutils
+    if [ $? -ne 0 ]; then 
+        yum install -y --disablerepo=\* --enablerepo=Pacemaker pacemaker; sleep 2
+        yum install -y --disablerepo=\* --enablerepo=Pacemaker pcs; sleep 2
+        yum install -y --disablerepo=\* --enablerepo=Pacemaker psmisc; sleep 2
+        yum install -y --disablerepo=\* --enablerepo=Pacemaker policycoreutils-python; sleep 2
+    fi
 
     # remove old resource file. I have rewrited the 'pgsql' and 'docker'.
     HEARTBEAT_RSC_DIR="/usr/lib/ocf/resource.d/heartbeat"

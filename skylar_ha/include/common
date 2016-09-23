@@ -181,6 +181,21 @@ check_args_valid() {
     return 0
 }
 
+check_install() {
+    echo "Check install, soft list:$@ "
+    soft_list=$@
+
+    for item in ${soft_list[@]}
+    do
+        installed=`yum list installed | grep "$item" |grep -v grep | wc -l`
+        if [ "$installed" == "0" ]; then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
 #
 # execute function
 #
