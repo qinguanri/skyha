@@ -403,8 +403,6 @@ recover_master() {
     if [ $pacemaker_proc -gt 0 ]; then
         kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
     fi
-    systemctl stop pacemaker.service
-    docker start pg
 
     drbdadm up skydata
     drbdadm primary all
