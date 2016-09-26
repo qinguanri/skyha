@@ -196,7 +196,7 @@ failover() {
     # 设置资源粘性，防止节点在故障恢复后发生迁移
     pcs -f resource_cfg resource defaults resource-stickiness="INFINITY"
     # 设置多少次失败后迁移
-    pcs -f resource_cfg resource defaults migration-threshold="2"
+    pcs -f resource_cfg resource defaults migration-threshold="3"
     # 设置master节点虚ip
     pcs -f resource_cfg resource create vip-master IPaddr2 ip="$vip_master" cidr_netmask="$cidr_netmask"    op start   timeout="60s" interval="0s"  on-fail="restart"    op monitor timeout="60s" interval="5s" on-fail="restart"    op stop    timeout="60s" interval="0s"  on-fail="block"
     
@@ -213,7 +213,7 @@ failover() {
     done
 
     # HA组件分组:
-    pcs -f resource_cfg resource group add master-group postgres redis bstkd nfs-daemon nfs-root vip-master
+    pcs -f resource_cfg resource group add master-group nfs-daemon nfs-root vip-master postgres redis bstkd
 
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add skyfs with drbd-cluster INFINITY with-rsc-role=Master 
