@@ -199,7 +199,6 @@ failover() {
     pcs -f resource_cfg resource defaults migration-threshold="3"
     # 设置master节点虚ip
     pcs -f resource_cfg resource create vip-master IPaddr2 ip="$vip_master" cidr_netmask="$cidr_netmask"    op start   timeout="60s" interval="0s"  on-fail="restart"    op monitor timeout="60s" interval="10s" on-fail="restart"    op stop    timeout="60s" interval="0s"  on-fail="block"
-    pcs -f resource_cfg resource group add master-group vip-master 
 
     for file in $WORK_DIR/resource/*
     do
@@ -212,30 +211,14 @@ failover() {
         fi
     done
 
+    pcs -f resource_cfg resouce group add master-group skyfs nfs-daemon nfs-root vip-master bstkd redis postgres 
+
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
-    pcs -f resource_cfg constraint colocation add skyfs with drbd-cluster INFINITY with-rsc-role=Master
-    
-    pcs -f resource_cfg constraint colocation add postgres with master-group INFINITY
-    pcs -f resource_cfg constraint colocation add bstkd with master-group INFINITY
-    pcs -f resource_cfg constraint colocation add redis with master-group INFINITY
-    
-    pcs -f resource_cfg constraint colocation add skyfs with master-group INFINITY
-    pcs -f resource_cfg constraint colocation add nfs-daemon with master-group INFINITY
-    pcs -f resource_cfg constraint colocation add nfs-root with master-group INFINITY
-
 
     ## HA组件启动顺序约束：
-    pcs -f resource_cfg constraint order promote drbd-cluster then start skyfs
-    pcs -f resource_cfg constraint order start skyfs then master-group
-
-    pcs -f resource_cfg constraint order master-group then bstkd
-    pcs -f resource_cfg constraint order master-group then redis
-    pcs -f resource_cfg constraint order master-group then postgres
-
-    pcs -f resource_cfg constraint order master-group then nfs-daemon
-    pcs -f resource_cfg constraint order master-group then nfs-root
-    pcs -f resource_cfg constraint order nfs-daemon then nfs-root
+    pcs -f resource_cfg constraint order promote drbd-cluster then start master-group
+    
 
 
     ## HA 首次启动位置约束
