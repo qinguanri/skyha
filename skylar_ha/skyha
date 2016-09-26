@@ -357,6 +357,13 @@ check_ha_status() {
             echo "OK. HA status is correct."
             return 0
         fi
+        
+        systemctl status pacemaker.service
+        if [ $? -ne 0 ]; then
+            systemctl start pacemaker.service
+            sleep 2
+        fi
+        
         pcs cluster unstandby --all
 
         sleep 5
