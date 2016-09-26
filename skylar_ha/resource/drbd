@@ -101,6 +101,13 @@ install() {
 }
 
 set_master() {
+    sleep 2
+    cat /proc/drbd | grep 'cs:Connected' | grep 'ro:Secondary/Secondary'
+    if [ $? -ne 0 ]; then
+        echo "ERROR. drbd are not connected between master and slave."
+        return 1
+    fi
+
     drbdadm primary --force skydata
 
     try=0

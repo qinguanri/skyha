@@ -72,6 +72,11 @@ install_pg() {
         return 1
     fi
 
+    if ! check_pg_run; then
+        echo "ERROR. PG is not running."
+        return 1
+    fi
+
     return 0
 }
 
