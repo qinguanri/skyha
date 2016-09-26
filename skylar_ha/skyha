@@ -396,8 +396,9 @@ check_master_status() {
     do
         sleep 1
         let "try++"
+        pcs cluster unstandby --all
 
-        crm_mon -Afr -1 | grep Masters | grep $HOSTNAME
+        crm_mon -Afr -1 | grep Masters
         if [ $? -ne 0 ]; then
             continue
         fi
@@ -411,7 +412,13 @@ check_master_status() {
         if [ $? -ne 0 ]; then
             continue
         fi
+
+        cat /proc/drbd | grep Primary
+        if [ $? -ne 0 ]; then
+            continue
+        fi
         
+        echo "OK. Master status is correct."
         return 0
     done
     echo "ERROR. Master status is incorrect."
