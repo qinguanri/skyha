@@ -664,13 +664,15 @@ show_status() {
     fi
 
     if [ "$my_ip" == "$master_ip" ]; then
-        master_dir_info=`du -sh $data_dir/*`
+        master_data_dir_info=`du -sh $data_dir/*`
+        master_drbd_dir_info=`du -sh /drbd/*`
 
         res=`ping -c 1 "$slave_ip"`
         if [ "$?" -ne 0 ]; then
             echo "ERROR. Ping $slave_ip failed."
         else
-            slave_dir_info=`ssh root@$slave_ip "du -sh $data_dir/*"`
+            slave_data_dir_info=`ssh root@$slave_ip "du -sh $data_dir/*"`
+            slave_drbd_dir_info=`ssh root@$slave_ip "du -sh /drbd/*"`
         fi
     fi
 
@@ -679,10 +681,12 @@ show_status() {
         if [ "$?" -ne 0 ]; then
             echo "ERROR. Ping $master_ip failed."
         else
-            master_dir_info=`ssh root@$master_ip "du -sh $data_dir/*"`
+            master_data_dir_info=`ssh root@$master_ip "du -sh $data_dir/*"`
+            master_drbd_dir_info=`ssh root@$master_ip "du -sh /drbd/*"`
         fi
 
-        slave_dir_info=`du -sh $data_dir/*`
+        slave_data_dir_info=`du -sh $data_dir/*`
+        slave_drbd_dir_info=`du -sh $data_dir/*`
     fi
 
     echo "
@@ -693,9 +697,11 @@ Base Info:
 
 Space Info:
 * Node $master_hostname:
-$master_dir_info
+$master_data_dir_info
+$master_drbd_dir_info
 * Node $slave_hostname:
-$slave_dir_info
+$slave_data_dir_info
+$slave_drbd_dir_info
 
 NFS Info:
 `showmount -e $vip_master`
