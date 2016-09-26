@@ -389,23 +389,32 @@ check_status() {
 }
 
 check_master_status() {
-    sleep 5
-    crm_mon -Afr -1 | grep Masters 
-    if [ $? -ne 0 ]; then
-        return 1
-    fi
+    echo "check master status ..."
+    try=1
 
-    crm_mon -Afr -1 | grep skyfs | grep Started
-    if [ $? -ne 0 ]; then
-        return 1
-    fi
+    while [ $try -lt 60 ]
+    do
+        sleep 1
+        let "try++"
 
-    crm_mon -Afr -1 | grep postgres | grep Started
-    if [ $? -ne 0 ]; then
-        return 1
-    fi
+        crm_mon -Afr -1 | grep Masters | grep $HOSTNAME
+        if [ $? -ne 0 ]; then
+            continue
+        fi
 
-    return 0
+        crm_mon -Afr -1 | grep skyfs | grep Started
+        if [ $? -ne 0 ]; then
+            continue
+        fi
+
+        crm_mon -Afr -1 | grep postgres | grep Started
+        if [ $? -ne 0 ]; then
+            continue
+        fi
+        
+        return 0
+    done
+    echo "ERROR. Master status is incorrect."
 }
 
 master_is_work() {
