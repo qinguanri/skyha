@@ -85,7 +85,6 @@ failover() {
         monitor_cmd="ps -ef | grep $| grep -v grep >/dev/null" \
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="4s" on-fail="restart" \
-        op monitor timeout="60s" interval="3s" on-fail="restart" role="Master" \
         op promote timeout="60s" interval="0s" on-fail="restart" \
         op demote timeout="60s" interval="0s" on-fail="stop" \
         op stop timeout="60s" interval="0s" on-fail="block"
