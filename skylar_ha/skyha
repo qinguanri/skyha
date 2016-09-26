@@ -393,27 +393,8 @@ master_is_work() {
 }
 
 slave_is_work() {
-    crm_mon -Afr -1
-
-    if [ $? -ne 0 ]; then
-        return 1
-    fi
-
-    crm_mon -Afr -1 | grep OFFLINE
-    if [ $? -eq 0 ]; then
-        return 1
-    fi
-
-    crm_mon -Afr -1 | grep standby
-    if [ $? -eq 0 ]; then
-        return 1
-    fi
-
-    crm_mon -Afr -1 |grep 'DISCONNECT'
-    if [ $? -eq 0 ]; then
-        return 1
-    fi
-    return 0
+    check_status
+    return $?
 }
 
 recover_master() {
