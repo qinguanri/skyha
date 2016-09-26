@@ -331,6 +331,7 @@ recover() {
 
     if ! master_is_work; then
         recover_master
+        check_master_status
     elif ! slave_is_work; then
         ip addr | grep $vip_master
         if [ $? -ne 0 ]; then
@@ -383,6 +384,26 @@ check_status() {
             fi
         fi
     done
+
+    return 0
+}
+
+check_master_status() {
+    sleep 5
+    crm_mon -Afr -1 | grep Masters 
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+
+    crm_mon -Afr -1 | grep skyfs | grep Started
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+
+    crm_mon -Afr -1 | grep postgres | grep Started
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
 
     return 0
 }
