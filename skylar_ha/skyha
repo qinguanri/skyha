@@ -307,6 +307,11 @@ reset() {
 # invoke the resouce's recover method. recover resouce back to ha status.
 #
 recover() {
+    if check_ha_status; then
+        echo "OK. HA status is correct. Do nothing."
+        return 0
+    fi
+
     date
     try=0
     while [ $try -le 5 ]
@@ -324,6 +329,7 @@ recover() {
 
     systemctl start docker.service
 
+
     if ! master_is_work; then
         recover_master
     elif ! slave_is_work; then
@@ -336,6 +342,7 @@ recover() {
 
     if [ $? -ne 0 ]; then
         echo "ERROR. Recover failed. `date`"
+        return 1
     fi
 
     echo "Done. Recover finished at time: `date`"
@@ -400,10 +407,24 @@ recover_master() {
     drbdadm connect all
 
     systemctl start pacemaker.service
+    sleep 1
+    pcs cluster unstandby --all
 
     return 0
 }
 
+recover_slave() {
+    for file in $WORK_DIR/resource/*
+    do
+        if [ -f $file ]; then
+            $file "recover"
+            if [ $? -ne 0 ]; then
+                echo "ERROR. Execute $file recover failed."
+                return 1
+            fi
+        fi
+    done
+}
 
 #
 # check args and install just for one host.

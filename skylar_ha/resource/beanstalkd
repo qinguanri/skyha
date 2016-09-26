@@ -94,7 +94,23 @@ failover() {
 }
 
 check_ha_status() {
-    return 0
+    echo "Check Beanstalkd status ..."
+    try=0
+    while [ $try -le 60 ]
+    do
+        pcs cluster unstandby --all
+        crm_mon -Afr -1 | grep bstkd | grep Started
+        if [ $? -eq 0 ]; then
+            echo "OK. Beanstalkd is started."
+            return 0
+        fi
+
+        sleep 1
+        let "try++"
+    done
+    
+    echo "ERROR. Beanstalkd is not started."
+    return 1
 }
 
 recover() {
