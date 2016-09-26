@@ -211,15 +211,25 @@ failover() {
         fi
     done
 
-    pcs -f resource_cfg resouce group add master-group skyfs nfs-daemon nfs-root vip-master bstkd redis postgres 
-
+    #pcs -f resource_cfg resouce group add master-group skyfs nfs-daemon nfs-root vip-master bstkd redis postgres 
+    pcs -f resource_cfg resouce group add master-group vip-master
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
+    #pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
+    pcs -f resource_cfg constraint colocation add skyfs with drbd-cluster INFINITY with-rsc-role=Master
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
+    pcs -f resource_cfg constraint colocation add bstkd with master-group
+    pcs -f resource_cfg constraint colocation add postgres with master-group
+    pcs -f resource_cfg constraint colocation add nfs-daemon with master-group
+    pcs -f resource_cfg constraint colocation add nfs-root with master-group
 
     ## HA组件启动顺序约束：
-    pcs -f resource_cfg constraint order promote drbd-cluster then start master-group
-    
-
+    pcs -f resource_cfg constraint order promote drbd-cluster then start skyfs symmetrical=false score=INFINITY
+    pcs -f resource_cfg constraint order skyfs then master-group
+    pcs -f resource_cfg constraint order skyfs then bstkd
+    pcs -f resource_cfg constraint order skyfs then redis
+    pcs -f resource_cfg constraint order skyfs then postgres
+    pcs -f resource_cfg constraint order skyfs then nfs-daemon
+    pcs -f resource_cfg constraint order skyfs then nfs-root
 
     ## HA 首次启动位置约束
     pcs -f resource_cfg constraint location drbd-cluster prefers $master_hostname=500
@@ -324,7 +334,6 @@ recover() {
 
     if ! master_is_work; then
         recover_master
-        $WORK_DIR/resource/pg check_master_status
     elif ! slave_is_work; then
         ip addr | grep $vip_master
         if [ $? -ne 0 ]; then
@@ -400,7 +409,7 @@ recover_master() {
 
     systemctl start pacemaker.service
 
-    return 1
+    return 0
 }
 
 
