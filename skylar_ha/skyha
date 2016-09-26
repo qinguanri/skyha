@@ -349,6 +349,24 @@ recover() {
 }
 
 check_ha_status() {
+    echo "Check HA status ..."
+    TRY=1 
+    while [ $TRY -lt 120 ]
+    do
+        if check_status; then
+            echo "OK. HA status is correct."
+            return 0
+        fi
+        pcs cluster unstandby --all
+
+        sleep 5
+        let "TRY++"
+    done
+    echo "ERROR. HA status is incorrect."
+    return 1
+}
+
+check_status() {
     for file in $WORK_DIR/resource/*
     do
         if [ -f $file ]; then

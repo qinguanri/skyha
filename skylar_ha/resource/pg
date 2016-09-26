@@ -210,19 +210,11 @@ failover() {
 # todo
 check_status() {
     echo "Check pg status ..."
-    try=0
-    while [ $try -le 60 ]
-    do
-        pcs cluster unstandby --all
-        crm_mon -Afr -1 | grep postgres | grep Started
-        if [ $? -eq 0 ]; then
-            echo "OK. PG is started."
-            return 0
-        fi
-
-        sleep 1
-        let "try++"
-    done
+    crm_mon -Afr -1 | grep postgres | grep Started
+    if [ $? -eq 0 ]; then
+        echo "OK. PG is started."
+        return 0
+    fi
     
     echo "ERROR. PG is not started."
     return 1

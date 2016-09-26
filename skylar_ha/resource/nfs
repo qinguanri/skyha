@@ -68,22 +68,12 @@ recover() {
 
 check_status() {
     echo "check nfs-server status ..."
-    count=1
-    MAX=120
-    while [ $count -le $MAX ]
-    do
-        sleep 1
+    crm_mon -Afr -1 | grep 'nfs-root' | grep Started
+    if [ $? -eq 0 ]; then
+        echo "OK. NFS is running correctly."
+        return 0
+    fi
 
-        pcs cluster unstandby --all
-        crm_mon -Afr -1 | grep 'nfs-root' | grep Started
-        if [ $? -eq 0 ]; then
-            echo "OK. NFS is running correctly."
-            return 0
-        fi
-        clear
-        crm_mon -Afr -1
-        let "count++"
-    done
     echo "ERROR. NFS is running incorrectly."
     return 1
 }

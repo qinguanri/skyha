@@ -288,19 +288,11 @@ solve_split_brain() {
 
 check_status() {
     echo "check drbd status ..."
-    count=1
-    MAX=120
-    while [ $count -le $MAX ]
-    do
-        sleep 1
-        pcs cluster unstandby --all
-        cat /proc/drbd| grep 'Primary' | grep 'Secondary'
-        if [ $? -eq 0 ]; then
-            echo "OK. drbd master and slave are running."
-            return 0
-        fi
-        let "count++"
-    done
+    cat /proc/drbd| grep 'Primary' | grep 'Secondary'
+    if [ $? -eq 0 ]; then
+        echo "OK. drbd master and slave are running."
+        return 0
+    fi
 
     cat /proc/drbd
     echo "ERROR. drbd status is wrong. You should need to fix it."
