@@ -420,6 +420,11 @@ recover_master() {
 
 recover_slave() {
     echo "recover slave ..."
+    systemctl start docker.service
+    systemctl start pacemaker.service
+    pcs cluster unstandby --all
+    sleep 5
+
     for file in $WORK_DIR/resource/*
     do
         if [ -f $file ]; then
