@@ -199,6 +199,7 @@ failover() {
     pcs -f resource_cfg resource defaults migration-threshold="3"
     # 设置master节点虚ip
     pcs -f resource_cfg resource create vip-master IPaddr2 ip="$vip_master" cidr_netmask="$cidr_netmask"    op start   timeout="60s" interval="0s"  on-fail="restart"    op monitor timeout="60s" interval="10s" on-fail="restart"    op stop    timeout="60s" interval="0s"  on-fail="block"
+    pcs -f resource_cfg resource group add master-group vip-master 
 
     for file in $WORK_DIR/resource/*
     do
