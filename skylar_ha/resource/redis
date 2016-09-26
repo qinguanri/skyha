@@ -116,6 +116,7 @@ check_ha_status() {
 }
 
 recover() {
+    echo "recover redis ..."
     systemctl status docker.service
     if [ $? -ne 0 ]; then
         systemctl start docker.service

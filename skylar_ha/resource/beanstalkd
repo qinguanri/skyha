@@ -106,6 +106,7 @@ check_ha_status() {
 }
 
 recover() {
+    echo "recover beanstalkd..."
     systemctl status docker.service
     if [ $? -ne 0 ]; then
         systemctl start docker.service

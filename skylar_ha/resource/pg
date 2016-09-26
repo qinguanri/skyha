@@ -115,6 +115,7 @@ auto_recover() {
 }
 
 recover() {
+    echo "recover pg ..."
     systemctl status docker.service
     if [ $? -ne 0 ]; then
         systemctl start docker.service

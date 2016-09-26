@@ -182,6 +182,7 @@ auto_recover() {
 }
 
 recover() {
+    echo "recover drbd ..."
     systemctl status docker.service
     if [ $? -ne 0 ]; then
         systemctl start docker.service
@@ -196,6 +197,7 @@ recover() {
 
     NODENAME=$HOSTNAME
     pcs cluster unstandby $NODENAME
+    sleep 1
 
     check_status
     if [ $? -ne 0 ]; then

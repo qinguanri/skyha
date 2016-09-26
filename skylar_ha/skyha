@@ -329,7 +329,6 @@ recover() {
 
     systemctl start docker.service
 
-
     if ! master_is_work; then
         recover_master
     elif ! slave_is_work; then
@@ -439,6 +438,7 @@ recover_master() {
 }
 
 recover_slave() {
+    echo "recover slave ..."
     for file in $WORK_DIR/resource/*
     do
         if [ -f $file ]; then

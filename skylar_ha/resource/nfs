@@ -63,6 +63,7 @@ auto_recover() {
 }
 
 recover() {
+    echo "recover nfs ..."
     return 0
 }
 
