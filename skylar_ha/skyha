@@ -632,7 +632,6 @@ enable() {
         if [ $? -eq 0 ]; then
             return 0
         fi
-        echo "$WORK_DIR/skyha recover >> $RECOVERY_LOG &" >> /etc/rc.local
         echo "$WORK_DIR/skyha recover >> $RECOVERY_LOG &" >> /etc/rc.d/rc.local
         chmod +x /etc/rc.local /etc/rc.d/rc.local
     fi
@@ -641,7 +640,6 @@ enable() {
 disable() {
     arg=$1
     if [ "$arg" == "auto_recovery" ]; then
-        sed -i '/skyha recover/d' /etc/rc.local
         sed -i '/skyha recover/d' /etc/rc.d/rc.local
     fi
     return 0
