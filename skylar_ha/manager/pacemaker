@@ -66,6 +66,8 @@ install_pacemaker() {
 
     systemctl start pcsd.service
     systemctl enable pcsd.service
+    systemctl enable pacemaker.service
+    systemctl enable corosync.service
     echo hacluster | passwd hacluster --stdin
 
     if ! ps -ef | grep pcs; then
