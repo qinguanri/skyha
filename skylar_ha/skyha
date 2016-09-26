@@ -134,7 +134,7 @@ failover() {
 
     systemctl stop pacemaker.service
     rm -rf /var/lib/pacemaker/cib/cib*
-    
+
     if [ "$mode" != "STANDALONE" ]; then
         rm -f /etc/corosync/corosync.conf
     fi
@@ -177,9 +177,29 @@ failover() {
         return 1
     fi
 
+    cidr_netmask=`ip addr | grep $master_ip | grep '/' |awk {'print $2'} | awk -F '/' {'print $2'}`
+    MIN=0
+    MAX=32
+    if [ "$cidr_netmask" -lt "$MIN" ] || [ "$cidr_netmask" -gt "$MAX" ]; then
+        echo "ERROR. cidr_netmask error. use default"
+        cidr_netmask="24"
+    fi
+
     cd $WORK_DIR
     rm -f resource_cfg
     pcs cluster cib resource_cfg
+
+    # 在pacemaker级别忽略quorum
+    pcs -f resource_cfg property set no-quorum-policy="ignore"
+    # 禁用STONITH
+    pcs -f resource_cfg property set stonith-enabled="false"
+    # 设置资源粘性，防止节点在故障恢复后发生迁移
+    pcs -f resource_cfg resource defaults resource-stickiness="INFINITY"
+    # 设置多少次失败后迁移
+    pcs -f resource_cfg resource defaults migration-threshold="3"
+    # 设置master节点虚ip
+    pcs -f resource_cfg resource create vip-master IPaddr2 ip="$vip_master" cidr_netmask="$cidr_netmask"    op start   timeout="60s" interval="0s"  on-fail="restart"    op monitor timeout="60s" interval="10s" on-fail="restart"    op stop    timeout="60s" interval="0s"  on-fail="block"
+
     for file in $WORK_DIR/resource/*
     do
         if [ -f $file ]; then
@@ -194,26 +214,26 @@ failover() {
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
     pcs -f resource_cfg constraint colocation add skyfs with drbd-cluster INFINITY with-rsc-role=Master
+    
+    pcs -f resource_cfg constraint colocation add postgres with master-group INFINITY
     pcs -f resource_cfg constraint colocation add bstkd with master-group INFINITY
     pcs -f resource_cfg constraint colocation add redis with master-group INFINITY
+    
     pcs -f resource_cfg constraint colocation add skyfs with master-group INFINITY
     pcs -f resource_cfg constraint colocation add nfs-daemon with master-group INFINITY
     pcs -f resource_cfg constraint colocation add nfs-root with master-group INFINITY
-    pcs -f resource_cfg constraint colocation add master-group with master pgsql-cluster INFINITY
-    
+
 
     ## HA组件启动顺序约束：
     pcs -f resource_cfg constraint order promote drbd-cluster then start skyfs
     pcs -f resource_cfg constraint order start skyfs then master-group
 
-    pcs -f resource_cfg constraint order start master-group then promote pgsql-cluster symmetrical=false score=INFINITY
-    pcs -f resource_cfg constraint order demote pgsql-cluster then stop master-group symmetrical=false score=0
-    
     pcs -f resource_cfg constraint order master-group then bstkd
     pcs -f resource_cfg constraint order master-group then redis
+    pcs -f resource_cfg constraint order master-group then postgres
+
     pcs -f resource_cfg constraint order master-group then nfs-daemon
     pcs -f resource_cfg constraint order master-group then nfs-root
-
     pcs -f resource_cfg constraint order nfs-daemon then nfs-root
 
 
@@ -389,9 +409,6 @@ recover_master() {
     systemctl stop pacemaker.service
     docker start pg
 
-    # if we don't rm the lock file, pacemaker will start error.
-    docker exec -it pg rm -f /var/lib/pgsql/tmp/PGSQL.lock
-
     drbdadm up skydata
     drbdadm primary all
     drbdadm disconnect all
@@ -402,20 +419,6 @@ recover_master() {
     return 1
 }
 
-recover_slave() {
-    echo "recover slave ..."
-    
-    recover_mode=$1
-    if [ "$recover_mode" == "full" ]; then
-        $WORK_DIR/resource/pg recover full
-    else
-        $WORK_DIR/resource/pg recover incr
-    fi
-	
-    $WORK_DIR/resource/drbd recover
-    
-    $WORK_DIR/resource/redis recover
-}
 
 #
 # check args and install just for one host.
@@ -674,9 +677,7 @@ switch() {
     echo "pcs cluster standby $NODENAME ..."
     pcs cluster standby $NODENAME
 
-    sleep 30
-
-    docker exec -it pg rm -f /var/lib/pgsql/tmp/PGSQL.lock
+    sleep 10
 
     echo "pcs cluster unstandby $NODENAME ..."
     pcs cluster unstandby $NODENAME

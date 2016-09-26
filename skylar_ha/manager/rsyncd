@@ -40,7 +40,7 @@ root:passwd" > /etc/rsync.secret
 
 [pg_data]
 comment = public archive
-path = $data_dir/pg
+path = /drbd/pg
 max connections = 10
 read only = yes
 list = yes

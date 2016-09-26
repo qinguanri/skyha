@@ -16,7 +16,7 @@ PG_VER_DEF=9.5
 
 PG_DIR_BIN="/usr/lib/postgresql/$PG_VER_DEF/bin"
 PG_DIR_DATA="/var/lib/postgresql/$PG_VER_DEF/main"
-PG_DIR_XLOG="/var/lib/postgresql/$PG_VER_DEF/xlog_archive"
+# PG_DIR_XLOG="/var/lib/postgresql/$PG_VER_DEF/xlog_archive"
 
 PG_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_pg*"`
 PG_IMAGE_NAME="skylar_pg"
@@ -25,7 +25,7 @@ PG_CONTAINER="pg"
 PG_USER="postgres"
 
 PG_BAK="$data_dir/pg_backup"
-pg_dir="$data_dir/pg"
+pg_dir="/drbd/pg"
 PG_PORT="5432/tcp"
 
 PG_RECOVER_LOG="/var/log/pg_ha_auto_recover.log"
@@ -49,12 +49,6 @@ prepare() {
         return 1
     fi
 
-    if [ -d "$data_dir/pg" ]; then
-        echo "Backup pg's old data from $data_dir/pg to $PG_BAK"
-        backup_data
-        rm -rf "$data_dir/pg"
-    fi
-
     docker images | grep "$PG_IMAGE_NAME"
     if [ $? -ne 0 ]; then
         echo "docker load < $PG_IMAGE_FILE. Please wait minutes..."
@@ -71,97 +65,13 @@ install_pg() {
         docker rm $PG_CONTAINER
     fi
 
-    # start skylar_pg container
-    docker run -d --net=host --privileged=true -v "$data_dir/pg":"$PG_DIR_DATA" --name "$PG_CONTAINER" --restart=always "$PG_IMAGE_NAME"
+    docker run -d --net=host --privileged=true --name "$PG_CONTAINER" --restart=always "$PG_IMAGE_NAME"
 
     if [ $? -ne 0 ]; then
-        echo "ERROR. docke run failed, cmd: docker run -d --net=host --privileged=true -v $pg_dir:$PG_DIR_DATA --name $PG_CONTAINER --restart=always $PG_IMAGE_NAME"
+        echo "ERROR. docke run failed, cmd: docker run -d --net=host --privileged=true --name $PG_CONTAINER --restart=always $PG_IMAGE_NAME"
         return 1
     fi
-   
-    local ret_code
-    ping -c 1 "$vip_master"
-    ret_code=$?
-    if [ "$ret_code" -ne 0 ] && [ "$my_ip" == "$master_ip" ]; then
-        echo "Install pg master ..."
-        install_pg_master
-        ret_code=$?
-    else
-        echo "Install pg slave ..."
-        install_pg_slave
-        ret_code=$?
-    fi
 
-    if [ $ret_code -ne 0 ]; then
-        echo "Install pg failed."
-        return 1
-    fi
-}
-
-install_pg_slave() {
-    if ! check_pg_run; then
-        echo "ERROR. Postgresql slave service start failed"
-        return 1
-    fi
-    echo "docker ps"
-    docker ps
-
-    echo "show postgresql process ..."
-    ps -ef | grep post
-
-    echo "Show data file at host ..."
-    ls -l $pg_dir
-
-    echo "Show data file at container ..."
-    docker exec -i $PG_CONTAINER ls -l /var/lib/postgresql/$PG_VER_DEF/main
-
-    echo "Stop postgresql service ..."
-    docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop
-    
-    sleep 1
-    docker exec -i $PG_CONTAINER rm -rf $PG_DIR_DATA
-    # use .pgpass file to login with no password.
-    docker exec -i $PG_CONTAINER mkdir -p /home/postgres
-    docker exec -i $PG_CONTAINER /bin/bash -c "echo \"*:*:*:*:postgres\" > /home/postgres/.pgpass"
-    docker exec -i $PG_CONTAINER chown -R postgres:postgres /home/postgres
-    docker exec -i $PG_CONTAINER chmod 0600 /home/postgres/.pgpass
-
-    peer_ip="$master_ip"
-    if [ "$my_ip" == "$master_ip" ]; then
-        peer_ip=$slave_ip
-    fi
-
-    echo "pg_basebackup ..."
-    docker exec -i $PG_CONTAINER su $PG_USER -c "pg_basebackup -h $peer_ip -U postgres -D $PG_DIR_DATA -X stream -P"
-
-    sleep 2
-
-    if ! docker exec -i $PG_CONTAINER ls $PG_DIR_DATA/postgresql.conf; then
-        echo "Warn. Cannot find file:$PG_DIR_DATA/postgresql.conf. Restart container ..."
-        docker restart $PG_CONTAINER
-        sleep 10
-        docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop
-    fi
-
-    docker exec -i $PG_CONTAINER rm -f /var/lib/pgsql/tmp/PGSQL.lock
-    docker exec -i $PG_CONTAINER rm -f $PG_DIR_DATA/postmaster.pid
-
-    docker exec -i $PG_CONTAINER /bin/bash -c "echo \"standby_mode = 'on'
-primary_conninfo = 'host=$peer_ip port=5432 user=replicator application_name=$my_ip password=8d5e9531-3817-460d-a851-659d2e51ca99 keepalives_idle=60 keepalives_interval=5 keepalives_count=5'
-restore_command = 'cp $PG_DIR_XLOG/%f %p'
-recovery_target_timeline = 'latest'\" > $PG_DIR_DATA/recovery.conf"
-    docker exec -i $PG_CONTAINER mkdir -p $PG_DIR_XLOG
-    docker exec -i $PG_CONTAINER chown -R $PG_USER:$PG_USER $PG_DIR_XLOG
-    docker exec -i $PG_CONTAINER chmod 0700 $PG_DIR_DATA
-    docker exec -i $PG_CONTAINER sed -i '/added by pgsql RA/d' $PG_DIR_DATA/postgresql.conf
-
-    # restart pg
-    docker restart $PG_CONTAINER
-    if ! check_pg_run; then
-        echo "ERROR. Postgresql slave service starts failed."
-        return 1
-    fi
-    echo "OK. install pg slave succeed."
     return 0
 }
 
@@ -182,71 +92,6 @@ check_pg_run() {
     return 1
 }
 
-install_pg_master() {
-    if ! check_pg_run; then
-        echo "ERROR. Postgresql master service starts failed."
-        return 1
-    fi
-    
-    create_rep_sql="create role replicator with login replication password '8d5e9531-3817-460d-a851-659d2e51ca99'"
-    docker exec -i $PG_CONTAINER su $PG_USER -c "$PG_DIR_BIN/psql -U $PG_USER -Atc \"${create_rep_sql}\""
-    
-    docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop
-
-    docker exec -i $PG_CONTAINER mkdir -p $PG_DIR_XLOG
-    docker exec -i $PG_CONTAINER chown -R $PG_USER:$PG_USER $PG_DIR_XLOG
-
-    docker exec -i $PG_CONTAINER su $PG_USER -c "cat $PG_DIR_DATA/pg_hba.conf | grep host | grep replication | grep all >>/dev/null"
-    
-    if [ $? -ne 0 ]; then
-        docker exec -i $PG_CONTAINER su $PG_USER -c "echo \"
-local   all            postgres                                peer
-local   all            all                                     peer
-host    all            all             127.0.0.1/32            trust
-host    all            all             $master_ip/32       trust
-host    all            all             $slave_ip/32        trust
-host    all            all             0.0.0.0/0               md5
-host    replication    all             0.0.0.0/0               md5\" > $PG_DIR_DATA/pg_hba.conf"
-    fi
-
-    docker exec -i $PG_CONTAINER su $PG_USER -c "cat $PG_DIR_DATA/postgresql.conf | grep archive_command | grep -v \"#\""
-
-    if [ $? -ne 0 ]; then
-        docker exec -i $PG_CONTAINER su $PG_USER -c "echo \"listen_addresses = '*'
-wal_level = hot_standby
-synchronous_commit = on
-archive_mode = on
-archive_command = 'cp %p $PG_DIR_XLOG/%f'
-max_wal_senders=5
-wal_keep_segments = 64
-#replication_timeout = 5000
-hot_standby = on
-restart_after_crash = off
-wal_receiver_status_interval = 2
-max_standby_streaming_delay = -1
-max_standby_archive_delay = -1
-synchronous_commit = on
-restart_after_crash = off
-hot_standby_feedback = on\" >> $PG_DIR_DATA/postgresql.conf"
-    fi
-    docker exec -i $PG_CONTAINER rm -f /var/lib/pgsql/tmp/PGSQL.lock
-
-    echo "docker restart $PG_CONTAINER ..."
-    docker restart $PG_CONTAINER
-
-    if [ $? -ne 0 ]; then
-        echo "ERROR. Start pg service failed, cmd: docker restart $PG_CONTAINER"
-        return 1
-    fi
-
-    if check_pg_run; then
-        echo "OK. Postgresql master service start succeed."
-        return 0
-    else
-        echo "ERROR. Postgresql master service start failed."
-        return 1
-    fi
-}
 
 # set auto execute recover when host is rebooted
 auto_recover() {
@@ -265,47 +110,32 @@ auto_recover() {
 }
 
 recover() {
-    echo "[Being to recover]"
-    date
-    if [ $# -lt 1 ]; then
-        echo "ERROR. Arguments error. Please chose incr or full."
-        return 1
+    systemctl status docker.service
+    if [ $? -ne 0 ]; then
+        systemctl start docker.service
+        sleep 2
     fi
-    
-    if ! systemctl status docker.service; then
-        echo "Warn. docker daemon is not running. Restart docker.service"
-        systemctl restart docker.service
-        sleep 10
-    fi
-
-    if ! docker ps | grep $PG_CONTAINER; then
-        echo "Warn. Container $PG_CONTAINER is not running. Start container..."
-        docker rm $(docker ps -a | grep -v CONTAINER | grep "$PG_IMAGE_NAME" | awk {'print $1'})
-        docker run -d --net=host --privileged=true -v "$pg_dir":"$PG_DIR_DATA" --name "$PG_CONTAINER" --restart=always "$PG_IMAGE_NAME"
-    fi
-
-    docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop
 
     backup_data
 
-    case "$1" in
-        incr) recover_with_incr;;
-        
-        full) recover_with_full;;
-        
-        *)  echo "ERROR. Arguments error. Please chose incr or full."
-            return 1;;
-    esac
+    systemctl status pacemaker.service
+    if [ $? -ne 0 ]; then
+        systemctl start pacemaker.service
+        sleep 2
+    fi
 
-    check_status
-    rc=$?
-    echo "[End]"
-    return $rc
+    NODENAME=$HOSTNAME
+    pcs cluster unstandby $NODENAME
+
+    return $?
 }
 
 backup_data() {
+    clear
+    echo "backup pg data ..."
     mkdir -p $data_dir/recover/pg/pg
     cd $data_dir/recover/pg
+    
     count=`ls -lt $data_dir/recover/pg | wc -l`
     while [ "$count" -gt 5 ]
     do
@@ -315,112 +145,30 @@ backup_data() {
 
     timestamp=`date "+%Y%m%d%H%M%S"`
     filename="pg.$timestamp.tar"
-
-    cp -rf $data_dir/pg $data_dir/recover/pg/pg
-    cd $data_dir/recover/pg
-    tar cvf $filename pg --remove-files
-    gzip "$filename"
-}
-
-# copy_data_by_rsync <server_ip>
-copy_data_by_rsync() {
-    server_ip="$1"
-    if [ ! -n "$server_ip" ]; then
-        server_ip=$vip_master
-    fi
-    
-    echo "Copy data by rsync ..."
-    rsync_cmd="/usr/bin/rsync -azpogP --delete --password-file=/etc/rsync_pg.secret root@$server_ip::pg_data $pg_dir"
-    res=`$rsync_cmd`
+    mkdir -p /drbd
+    losetup /dev/loop9 $data_dir/data.img
     if [ $? -eq 0 ]; then
-        return 0
+        mount /dev/drbd1 /drbd
+        cp -rf /drbd/pg $data_dir/recover/pg/pg
+        cd $data_dir/recover/pg
+        tar cvf $filename pg --remove-files
+        gzip $data_dir/recover/pg/$filename
+        rm -rf $data_dir/recover/pg/pg
+        umount /dev/drbd1
     else
-        echo "WARN. /usr/bin/rsync execute unexpected, cmd: $rsync_cmd"
-        return 1
-    fi
-}
-
-recover_with_incr() {
-
-    #################################################
-    #  stop process and clean file
-    #################################################
-    echo "systemctl stop pacemaker.service..."
-    pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
-    if [ $pacemaker_proc -gt 0 ]; then
-        kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
-    fi
-    systemctl stop pacemaker.service
-    rm -f /var/log/cluster/corosync.log
-
-    echo "Stop postgresql service ..."
-    docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop
-    postgres_run=`ps -ef | grep postgresql| grep -v grep |wc -l`
-    if [ "$postgres_run" != "0" ]; then
-        docker exec -i $PG_CONTAINER kill -9 $(docker exec -i $PG_CONTAINER ps -ef | grep postgresql| grep -v grep | awk {'print $2'})
-    fi
-    docker exec -i $PG_CONTAINER rm -f /var/lib/pgsql/tmp/PGSQL.lock
-    ##################################################
-
-    source $WORK_DIR/conf/ha.conf
-    if [ ! -n "$vip_master" ] || [ ! -n "$pg_dir" ]; then
-        echo "ERROR. vip_master or pg_dir is null"
-        return 1
+        peer_ip="$master_ip"
+        if [ "$my_ip" == "$master_ip" ]; then
+            peer_ip="$slave_ip"
+        fi
+        echo "backup data from peer host."
+        ssh root@$peer_ip "mkdir -p $data_dir/recover/pg/pg;cp -rf /drbd/pg $data_dir/recover/pg/pg"
+        ssh root@$peer_ip "cd $data_dir/recover/pg;tar cvf $filename pg --remove-files"
+        ssh root@$peer_ip "gzip $data_dir/recover/pg/$filename"
+        scp root@$peer_ip:$data_dir/recover/pg/"$filename.gz" $data_dir/recover/pg
     fi
 
-    copy_data_by_rsync $vip_master
-    docker exec -i $PG_CONTAINER rm -f $PG_DIR_DATA/postmaster.pid
-    
-    echo "systemctl start pacemaker.service..."
-    systemctl start pacemaker.service
-}
-
-recover_with_full() {
-    docker restart $PG_CONTAINER
-    if [ $? -ne 0 ]; then
-        echo "ERROR. docker restart $PG_CONTAINER failed."
-        return 1
-    fi
-
-    echo "Backup pg's old data..."
-    docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop 
-    [ -d $pg_dir ] && rm -rf $pg_dir
-    docker exec -i $PG_CONTAINER rm -rf $PG_DIR_DATA
-    docker exec -i $PG_CONTAINER rm -rf $PG_DIR_XLOG
-    docker exec -i $PG_CONTAINER mkdir $PG_DIR_DATA
-    docker exec -i $PG_CONTAINER mkdir $PG_DIR_XLOG
-
-    docker exec -i $PG_CONTAINER rm -rf $PG_DIR_DATA
-    # use .pgpass file to login with no password.
-    docker exec -i $PG_CONTAINER mkdir -p /home/postgres
-    docker exec -i $PG_CONTAINER /bin/bash -c "echo \"*:*:*:*:postgres\" > /home/postgres/.pgpass"
-    docker exec -i $PG_CONTAINER chown -R postgres:postgres /home/postgres
-    docker exec -i $PG_CONTAINER chmod 0600 /home/postgres/.pgpass
-    ## 从主库重新同步数据库数据
-    echo "please input postgres's passwd:"
-    docker exec -i $PG_CONTAINER  su $PG_USER -c "pg_basebackup -h $vip_master -U postgres -D $PG_DIR_DATA -X stream -P"
-
-    if [ $? -ne 0 ]; then
-        echo "ERROR. pg_basebackup failed, cmd: docker exec -i $PG_CONTAINER pg_basebackup -h $vip_master -U postgres -D $PG_DIR_DATA -X stream -P"
-        return 1
-    fi
-
-    docker exec -i $PG_CONTAINER /bin/bash -c "echo \"standby_mode = 'on'
-    primary_conninfo = 'host=$vip_master port=5432 user=replicator application_name=$my_ip password=8d5e9531-3817-460d-a851-659d2e51ca99 keepalives_idle=60 keepalives_interval=5 keepalives_count=5'
-    restore_command = 'cp $PG_DIR_XLOG/%f %p'
-    recovery_target_timeline = 'latest'\" > $PG_DIR_DATA/recovery.conf"
-
-    docker exec -i $PG_CONTAINER chown -R postgres:postgres $PG_DIR_DATA $PG_DIR_XLOG
-    docker exec -i $PG_CONTAINER chmod 0700 $PG_DIR_DATA
-
-    echo "config pacemaker ..."
-    # 清理pacemaker的cib配置
-    rm -rf /var/lib/pacemaker/cib/cib*
-    docker exec -i $PG_CONTAINER rm -f /var/lib/pgsql/tmp/PGSQL.lock
-
-    echo "Restart pacemaker ..."
-    systemctl start pacemaker.service
-
+    rm -rf $data_dir/recover/pg/pg
+    echo "Backup pg data finished."
 }
 
 clean() {
@@ -439,128 +187,25 @@ clean() {
     return 0
 }
 
-check_replication_status() {
-    check_replication_sql="select count(*) from pg_stat_replication"
-    res=`docker exec -i $PG_CONTAINER su $PG_USER -c "$PG_DIR_BIN/psql -U $PG_USER -Atc \"${check_replication_sql}\""`
-    echo $res | grep "1"
-    if [ $? -eq 0 ]; then
-        echo "OK. Replicator connector succeed."
-        return 0
-    else
-        echo "ERROR. Replicator connector failed."
-        return 1
-    fi
-}
-
 failover() {
-    if [ "$my_ip" != "$master_ip" ]; then
-        echo "ERROR. Cannot config failover on host:$my_ip, please go to master: $master_ip"
-        return 1
-    fi
+    pcs -f resource_cfg resource create postgres docker image=skylar_pg:latest \
+        run_opts="--restart=always --net=host --privileged=true -v $pg_dir:$PG_DIR_DATA" \
+        name="pg" monitor_cmd="ps -ef | grep postgres| grep -v grep >/dev/null" \
+        op start timeout="60s" interval="0s" on-fail="restart" \
+        op monitor timeout="60s" interval="4s" on-fail="restart" \
+        op monitor timeout="60s" interval="3s" on-fail="restart" role="Master" \
+        op promote timeout="60s" interval="0s" on-fail="restart" \
+        op demote timeout="60s" interval="0s" on-fail="stop" \
+        op stop timeout="60s" interval="0s" on-fail="block"
 
-    echo "Check replication status ..."
-    sleep 2
-    if ! check_replication_status; then
-        ping -c 1 "$slave_ip"
-        if [ $? -eq 0 ]; then
-            echo "ping $slave_ip ok, but pg is not running correctly at slave."
-            return 1
-        else
-            echo "ping $slave_ip failed. slave may be not running. I will run on standalone mode as master role."
-        fi
-    fi
-
-    echo "Stop pg master ..."
-    docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop
-
-    echo "Stop pg slave, input password for root@$slave_ip:"
-    ssh root@$slave_ip "docker exec -i $PG_CONTAINER /etc/init.d/postgresql stop"
-
-    docker exec -i $PG_CONTAINER rm -f /var/lib/pgsql/tmp/PGSQL.lock
-
-    cidr_netmask=`ip addr | grep $my_ip | grep '/' |awk {'print $2'} | awk -F '/' {'print $2'}`
-    MIN=0
-    MAX=32
-    if [ "$cidr_netmask" -lt "$MIN" ] || [ "$cidr_netmask" -gt "$MAX" ]; then
-        echo "ERROR. cidr_netmask error. use default"
-        cidr_netmask="24"
-    fi
-
-    # 在pacemaker级别忽略quorum
-    pcs -f resource_cfg property set no-quorum-policy="ignore"
-    # 禁用STONITH
-    pcs -f resource_cfg property set stonith-enabled="false"
-    # 设置资源粘性，防止节点在故障恢复后发生迁移
-    pcs -f resource_cfg resource defaults resource-stickiness="INFINITY"
-    # 设置多少次失败后迁移
-    pcs -f resource_cfg resource defaults migration-threshold="3"
-    # 设置master节点虚ip
-    pcs -f resource_cfg resource create vip-master IPaddr2 ip="$vip_master" cidr_netmask="$cidr_netmask"    op start   timeout="60s" interval="0s"  on-fail="restart"    op monitor timeout="60s" interval="10s" on-fail="restart"    op stop    timeout="60s" interval="0s"  on-fail="block"
-
-    # 设置pgsql集群资源
-    # pgctl、psql、pgdata和config等配置根据自己的环境修改
-    pcs -f resource_cfg resource create pgsql pgsql pgctl="$PG_DIR_BIN/pg_ctl" psql="$PG_DIR_BIN/psql" pgdata="$PG_DIR_DATA" config="$PG_DIR_DATA/postgresql.conf" rep_mode="sync" node_list="$master_hostname $slave_hostname" master_ip="$vip_master"  repuser="replicator" primary_conninfo_opt="password=8d5e9531-3817-460d-a851-659d2e51ca99 keepalives_idle=60 keepalives_interval=5 keepalives_count=5" restore_command="cp $PG_DIR_XLOG/%f %p" restart_on_promote='true' op start   timeout="60s" interval="0s"  on-fail="restart" op monitor timeout="60s" interval="4s" on-fail="restart" op monitor timeout="60s" interval="3s"  on-fail="restart" role="Master" op promote timeout="60s" interval="0s"  on-fail="restart" op demote  timeout="60s" interval="0s"  on-fail="stop" op stop    timeout="60s" interval="0s"  on-fail="block"
-    # 设置master/slave模式
-    pcs -f resource_cfg resource master pgsql-cluster pgsql master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true
-    # 配置master ip组
-    pcs -f resource_cfg resource group add master-group vip-master 
+    return $?
 
 }
 
+# todo
 check_status() {
-    if ! check_master_status; then
-        echo "ERROR. pg master is running error."
-        return 1
-    fi
-    
-    if ! check_slave_status; then
-        echo "ERROR. pg slave is running error."
-        return 1
-    fi
-
     echo "OK. pg master and slave are running."
     return 0
-}
-
-check_master_status() {
-    count=1
-    MAX=120
-    while [ $count -le $MAX ]
-    do
-        sleep 1
-        pcs cluster unstandby --all
-        IS_LATEST=`crm_mon -Afr -1|grep LATEST | wc -l`
-        IS_PRI=`crm_mon -Afr -1 | grep PRI | wc -l`
-        if [ "$IS_LATEST" == "1" ] && [ "$IS_PRI" == "1" ]; then
-            echo "OK. PG master is running."
-            return 0
-        fi
-        let "count++"
-        clear 
-        crm_mon -Afr -1
-        echo "check pg master's status, please wait about two minutes ..."
-    done
-    return 1
-}
-
-check_slave_status() {
-    count=1
-    MAX=120
-    while [ $count -le $MAX ]
-    do
-        sleep 1
-        pcs cluster unstandby --all
-        IS_SYNC=`crm_mon -Afr -1|grep SYNC | wc -l`
-        if [ "$IS_SYNC" == "1" ]; then
-            echo "OK. PG slave is running."
-            return 0
-        fi
-        let "count++"
-        clear
-        crm_mon -Afr -1
-        echo "check pg slave's status, please wait about one minute ..."
-    done
-    return 1
 }
 
 source $WORK_DIR/conf/ha.conf
