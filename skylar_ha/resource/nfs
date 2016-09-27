@@ -35,11 +35,11 @@ install() {
         yum install -y --disablerepo=\* --enablerepo=Nfs nfs-utils rpcbind; sleep 1
     fi
 
-    systemctl enable rpcbind.service
+    #systemctl enable rpcbind.service
     systemctl start rpcbind.service
 
     echo "" > /etc/exports
-    systemctl enable nfs-server.service
+    #systemctl enable nfs-server.service
     systemctl start nfs-server.service
     
     if [ $? -ne 0 ]; then

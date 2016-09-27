@@ -213,15 +213,15 @@ failover() {
     done
 
     # HA组件分组:
-    pcs -f resource_cfg resource group add master-group nfs-daemon nfs-root vip-master postgres redis bstkd
+    pcs -f resource_cfg resource group add master-group vip-master nfs-daemon nfs-root postgres redis bstkd
 
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add skyfs with drbd-cluster INFINITY with-rsc-role=Master 
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
-    
+
     ## HA组件启动顺序约束：
     pcs -f resource_cfg constraint order promote drbd-cluster then start skyfs symmetrical=false score=INFINITY
-    pcs -f resource_cfg constraint order skyfs then master-group
+    pcs -f resource_cfg constraint order start skyfs then start master-group
 
     ## HA 首次启动位置约束
     pcs -f resource_cfg constraint location drbd-cluster prefers $master_hostname=500
