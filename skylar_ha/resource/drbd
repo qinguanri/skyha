@@ -72,6 +72,7 @@ install() {
     device /dev/drbd1;
     syncer {
         verify-alg sha1;
+        al-extents 3389;
     }
     net {
         allow-two-primaries;
