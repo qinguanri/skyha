@@ -75,7 +75,6 @@ install() {
         al-extents 3389;
     }
     net {
-        allow-two-primaries;
         max-buffers 8000;
         max-epoch-size 8000;
         sndbuf-size 512k;
