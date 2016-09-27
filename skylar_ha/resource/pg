@@ -196,7 +196,7 @@ clean() {
 failover() {
     pcs -f resource_cfg resource create postgres docker image=skylar_pg:latest \
         run_opts="--net=host --privileged=true -v $pg_dir:$PG_DIR_DATA" \
-        name="pg" monitor_cmd="ps -ef | grep postgres| grep -v grep >/dev/null" \
+        name="pg" monitor_cmd="docker exec -it pg su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\""
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="30s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
