@@ -49,7 +49,7 @@ install_bstkd() {
         echo "ERROR. Start beanstalkd failed."
         return 1
     fi
-
+    docker stop $BSTKD_CONTAINER
     echo "OK. Install beanstalkd succeed."
     return 0
 }

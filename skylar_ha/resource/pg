@@ -76,7 +76,7 @@ install_pg() {
         echo "ERROR. PG is not running."
         return 1
     fi
-
+    docker stop $PG_CONTAINER
     return 0
 }
 

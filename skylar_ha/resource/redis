@@ -59,6 +59,7 @@ install_redis() {
         echo "ERROR. Start redis failed."
         return 1
     fi
+    docker stop $REDIS_CONTAINER
 
     echo "OK. Install redis succeed."
     return 0
