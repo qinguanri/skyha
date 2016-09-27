@@ -158,7 +158,7 @@ failover() {
     echo "config failover for drbd ..."
 
     echo "config drbd ..."
-    pcs -f resource_cfg resource create skydata ocf:linbit:drbd drbd_resource=skydata op monitor interval=60s
+    pcs -f resource_cfg resource create skydata ocf:linbit:drbd drbd_resource=skydata op monitor interval=30s
     pcs -f resource_cfg resource master drbd-cluster skydata master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true
 
     sleep 2
