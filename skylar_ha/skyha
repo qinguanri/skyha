@@ -216,35 +216,13 @@ failover() {
     pcs -f resource_cfg resource group add master-group skyfs vip-master postgres redis bstkd nfs-daemon nfs-root
 
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
-    # pcs -f resource_cfg constraint colocation add skyfs with drbd-cluster INFINITY with-rsc-role=Master 
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
 
     ## HA组件启动顺序约束：
     pcs -f resource_cfg constraint order promote drbd-cluster then start master-group symmetrical=false score=INFINITY
-    # pcs -f resource_cfg constraint order demote drbd-cluster then stop skyfs symmetrical=false score=INFINITY
-
-    # pcs -f resource_cfg constraint order start skyfs then start vip-master symmetrical=false
-    # pcs -f resource_cfg constraint order stop skyfs then stop vip-master symmetrical=false
-
-    # pcs -f resource_cfg constraint order start skyfs then start nfs-daemon symmetrical=false
-    # pcs -f resource_cfg constraint order stop skyfs then stop nfs-daemon symmetrical=false
-
-    # pcs -f resource_cfg constraint order start skyfs then start nfs-root symmetrical=false
-    # pcs -f resource_cfg constraint order stop skyfs then stop nfs-root symmetrical=false
-
-
-    # pcs -f resource_cfg constraint order start skyfs then start postgres symmetrical=false
-    # pcs -f resource_cfg constraint order stop skyfs then stop postgres symmetrical=false
-
-    # pcs -f resource_cfg constraint order start skyfs then start redis symmetrical=false
-    # pcs -f resource_cfg constraint order stop skyfs then stop redis symmetrical=false
-
-    # pcs -f resource_cfg constraint order start skyfs then start bstkd symmetrical=false
-    # pcs -f resource_cfg constraint order stop skyfs then stop bstkd symmetrical=false
 
     ## HA 首次启动位置约束
-    pcs -f resource_cfg constraint location drbd-cluster prefers $master_hostname=500
-    pcs -f resource_cfg constraint location drbd-cluster prefers $slave_hostname=0
+    pcs -f resource_cfg constraint location drbd-cluster prefers $master_hostname=10
 
     pcs cluster cib-push resource_cfg
     rm -f resource_cfg
