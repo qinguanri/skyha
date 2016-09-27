@@ -65,18 +65,18 @@ install_pg() {
         docker rm $PG_CONTAINER
     fi
 
-    docker run -d --net=host --privileged=true --name "$PG_CONTAINER" --restart=always "$PG_IMAGE_NAME"
+    #docker run -d --net=host --privileged=true --name "$PG_CONTAINER" --restart=always "$PG_IMAGE_NAME"
 
-    if [ $? -ne 0 ]; then
-        echo "ERROR. docke run failed, cmd: docker run -d --net=host --privileged=true --name $PG_CONTAINER --restart=always $PG_IMAGE_NAME"
-        return 1
-    fi
+    #if [ $? -ne 0 ]; then
+    #    echo "ERROR. docke run failed, cmd: docker run -d --net=host --privileged=true --name $PG_CONTAINER --restart=always $PG_IMAGE_NAME"
+    #    return 1
+    #fi
 
-    if ! check_pg_run; then
-        echo "ERROR. PG is not running."
-        return 1
-    fi
-    docker stop $PG_CONTAINER
+    #if ! check_pg_run; then
+    #    echo "ERROR. PG is not running."
+    #    return 1
+    #fi
+    #docker stop $PG_CONTAINER
     return 0
 }
 

@@ -54,14 +54,14 @@ install_redis() {
         docker rm $REDIS_CONTAINER
     fi
 
-    docker run --name=$REDIS_CONTAINER -d --net=host --privileged=true $REDIS_IMAGE_NAME
-    if ! is_redis_run; then
-        echo "ERROR. Start redis failed."
-        return 1
-    fi
-    docker stop $REDIS_CONTAINER
+    #docker run --name=$REDIS_CONTAINER -d --net=host --privileged=true $REDIS_IMAGE_NAME
+    #if ! is_redis_run; then
+    #    echo "ERROR. Start redis failed."
+    #    return 1
+    #fi
+    #docker stop $REDIS_CONTAINER
 
-    echo "OK. Install redis succeed."
+    #echo "OK. Install redis succeed."
     return 0
 }
 

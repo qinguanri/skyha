@@ -44,13 +44,13 @@ install_bstkd() {
         docker rm $BSTKD_CONTAINER
     fi
 
-    docker run --name=$BSTKD_CONTAINER --restart=always -d --net=host --privileged=true $BSTKD_IMAGE_NAME
-    if ! is_bstkd_run; then
-        echo "ERROR. Start beanstalkd failed."
-        return 1
-    fi
-    docker stop $BSTKD_CONTAINER
-    echo "OK. Install beanstalkd succeed."
+    #docker run --name=$BSTKD_CONTAINER --restart=always -d --net=host --privileged=true $BSTKD_IMAGE_NAME
+    #if ! is_bstkd_run; then
+    #    echo "ERROR. Start beanstalkd failed."
+    #    return 1
+    #fi
+    #docker stop $BSTKD_CONTAINER
+    #echo "OK. Install beanstalkd succeed."
     return 0
 }
 
@@ -82,7 +82,7 @@ is_bstkd_run() {
 failover() {
     pcs -f resource_cfg resource create bstkd docker image=$BSTKD_IMAGE_NAME:latest \
         run_opts="--net=host --privileged=true" name="$BSTKD_CONTAINER" \
-        monitor_cmd="ps -ef | grep beanstalkd >/dev/null" \
+        monitor_cmd="ps -ef | grep beanstalkd " \
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="5s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
