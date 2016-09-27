@@ -91,10 +91,10 @@ is_redis_run() {
 
 failover() {
     pcs -f resource_cfg resource create redis docker image=skylar_redis:latest \
-        run_opts="--restart=always --net=host --privileged=true -v $redis_dir:/var/lib/redis/" \
+        run_opts="--net=host --privileged=true -v $redis_dir:/var/lib/redis/" \
         name="redis" monitor_cmd="ps -ef | grep redis| grep -v grep >/dev/null" \
         op start timeout="60s" interval="0s" on-fail="restart" \
-        op monitor timeout="60s" interval="10s" on-fail="restart" \
+        op monitor timeout="60s" interval="30s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
 
     return $?
