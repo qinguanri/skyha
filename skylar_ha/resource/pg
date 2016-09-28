@@ -198,7 +198,7 @@ failover() {
         run_opts="--net=host --privileged=true -v $pg_dir:$PG_DIR_DATA" \
         name="pg" monitor_cmd="su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\"" \
         op start timeout="60s" interval="0s" on-fail="restart" \
-        op monitor timeout="60s" interval="5s" on-fail="restart" \
+        op monitor timeout="60s" interval="10s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="standby"
 
     return $?
