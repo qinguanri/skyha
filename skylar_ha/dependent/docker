@@ -248,7 +248,7 @@ docker_monitor()
 
 	if [ $rc -ne 0 ]; then
 		ocf_log info "docker_simple_status return error. code=$rc. switch to standby mode."
-		pcs cluster standby $NODENAME
+		#pcs cluster standby $NODENAME
 		return $rc
 	fi
 
@@ -256,7 +256,7 @@ docker_monitor()
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		ocf_log info "monitor_cmd_exec return error. code=$rc. switch to standby mode."
-		pcs cluster standby $NODENAME
+		#pcs cluster standby $NODENAME
 	fi
 
 	return $rc
