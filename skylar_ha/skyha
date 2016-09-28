@@ -627,7 +627,7 @@ config() {
 enable() {
     arg=$1
     if [ "$arg" == "auto_recovery" ]; then
-        cat /etc/rc.local | grep 'skyha recover'
+        cat /etc/rc.d/rc.local | grep 'skyha recover'
         if [ $? -eq 0 ]; then
             return 0
         fi
