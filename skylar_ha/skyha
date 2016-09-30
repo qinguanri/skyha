@@ -350,7 +350,7 @@ recover() {
 check_ha_status() {
     echo "Check HA status ..."
     TRY=1 
-    while [ $TRY -lt 120 ]
+    while [ $TRY -lt 60 ]
     do
         if check_status; then
             echo "OK. HA status is correct."
