@@ -12,8 +12,8 @@
 
 
 #-------------------------------
-#enable_auto_test=true
-enable_auto_test=false
+enable_auto_test=true
+#enable_auto_test=false
 #-------------------------------
 
 if [ "$enable_auto_test" == false ]; then
@@ -35,10 +35,11 @@ cur_master_ip=0.0.0.0
 cur_slave_ip=0.0.0.0
 ERROR_INFO=""
 
-WORK_DIR=$(cd `dirname $0`; pwd)
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 
 # install the ha system.
 do_install() {
+    touch $WORK_DIR/auto_test/auto_test.log
     echo "do_install" > $WORK_DIR/auto_test/auto_test.log
     date >> $WORK_DIR/auto_test/auto_test.log
 
