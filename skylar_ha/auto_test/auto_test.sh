@@ -22,9 +22,9 @@ if [ "$enable_auto_test" == false ]; then
 fi
 
 
-master_ip=192.168.75.129
-slave_ip=192.168.75.133
-vip_master=192.168.75.140
+master_ip=192.168.83.128
+slave_ip=192.168.83.130
+vip_master=192.168.83.140
 data_dir=/data
 master_hostname=db1
 slave_hostname=db2
