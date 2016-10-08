@@ -37,6 +37,9 @@ ERROR_INFO=""
 
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 
+begin_time=`date +%s`
+end_time=`date +%s`
+
 # install the ha system.
 do_install() {
     touch $WORK_DIR/auto_test/auto_test.log
@@ -46,8 +49,9 @@ do_install() {
     # pull code and stop service.
     ssh root@$master_ip "cd $code_dir; git pull; systemctl stop pacemaker.service; drbdadm down skydata" >>/dev/null
     ssh root@$slave_ip "cd $code_dir; git pull; systemctl stop pacemaker.service; drbdadm down skydata" >>/dev/null
-
-    ssh root@master_ip "$code_dir/skyha install master_ip=$master_ip slave_ip=$slave_ip vip_master=$vip_master data_dir=$data_dir master_hostname=$master_hostname slave_hostname=$slave_hostname drbd_size=$drbd_size" > $WORK_DIR/auto_test/auto_test.log
+    
+    echo "login $master_ip to run install command ..."
+    ssh root@$master_ip "$code_dir/skyha install master_ip=$master_ip slave_ip=$slave_ip vip_master=$vip_master data_dir=$data_dir master_hostname=$master_hostname slave_hostname=$slave_hostname drbd_size=$drbd_size"    
     ret=$?
 
     date >> $WORK_DIR/auto_test/auto_test.log
@@ -62,10 +66,10 @@ do_install() {
 
 # run the auto test case
 do_failover() {
-    test_case_1
-    test_case_2
-    test_case_3
-    test_case_4
+    echo -e "\033[32m 执行测试用例 \033[0m"
+    begin_time=`date +%s`; test_case_1; print_test_result
+    begin_time=`date +%s`; test_case_2; print_test_result
+    begin_time=`date +%s`; test_case_3; print_test_result
     return 0
 }
 
@@ -76,56 +80,61 @@ recover_ha_status() {
 check_master_status() {
     result=0
     ERROR_INFO=""
-
     get_current_master_slave_ip
-    ssh root@$cur_master_ip "ip addr | grep $vip_master"
+    ssh root@$cur_master_ip "ip addr | grep $vip_master" >>/dev/null
     if [ $? -ne 0 ]; then
         ERROR_INFO="$ERROR_INFO+ERROR. vip_master error."
         result=1
     fi
 
-    ssh root@$cur_master_ip "cat /proc/drbd | grep Primary"
+    ssh root@$cur_master_ip "cat /proc/drbd | grep Primary" >> /dev/null
     if [ $? -ne 0 ]; then
-        ERROR_INFO="$ERROR_INFO+ERROR. drbd process error."
+        ERROR_INFO="$ERROR_INFO+ERROR. drbd process error." >> /dev/null
         result=1
     fi
 
-    ssh root@$cur_master_ip "ps -ef | grep postgres"
-    if [ $? -ne 0 ]; then 
-        ERROR_INFO="$ERROR_INFO+ERROR. pg process error."
-        result=1
-    fi
+    processes=("postgres" "redis" "beanstalkd")
+    for pro in ${processes[@]}
+    do
+        ssh root@$cur_master_ip "ps -ef | grep $pro" >>/dev/null
+        if [ $? -ne 0 ]; then 
+            ERROR_INFO="$ERROR_INFO+ERROR. process $pro status error."
+            result=1
+        fi
+    done
 
-    ssh root@$cur_master_ip "ps -ef | grep redis"
-    if [ $? -ne 0 ]; then
-        ERROR_INFO="$ERROR_INFO+ERROR. redis process error."
-        result=1
-    fi
+    
+    resources=("skyfs" "vip-master" "postgres" "redis" "bstkd" "nfs-daemon" "nfs-root")
+    for res in ${resources[@]}
+    do
+         
+        ssh root@$cur_master_ip "crm_mon -Afr -1 | grep $res | grep Started" >>/dev/null
+        if [ $? -ne 0 ]; then
+            ERROR_INFO="$ERROR_INFO+ERROR. pacemaker resource $res status error."
+            result=1
+        fi
+    done
 
-    ssh root@$cur_master_ip "ps -ef | grep beanstalkd"
-    if [ $? -ne 0 ]; then
-        ERROR_INFO="$ERROR_INFO+ERROR. beanstalkd process error."
-        result=1
-    fi
 
     return $result
 }
 
 check_status() {
+    sleep 5   # 等待切换完成
     try=0
-    while [ $try -lt 5 ]
-    do
+    while [ $try -lt 60 ]
+    do  
+        sleep 1
         if check_master_status; then
             return 0
         fi
-        sleep 5
         let "try++"
     done
     return 1
 }
 
 main() {
-    do_install
+    #do_install
     do_failover
     output_test_result
 }
@@ -133,54 +142,61 @@ main() {
 get_current_master_slave_ip() {
     cur_master_ip=$master_ip
     cur_slave_ip=$slave_ip
-    ssh root@$master_ip "ip addr | grep $vip_master"
+    ssh root@$master_ip "ip addr | grep $vip_master" >> /dev/null
     if [ $? -ne 0 ]; then 
         cur_master_ip=$slave_ip
         cur_slave_ip=$master_ip
-    fi
-    ssh root@$slave_ip "ip addr | grep $vip_master"
-    if [ $? -ne 0 ]; then
-        cur_master_ip=0.0.0.0
-        cur_slave_ip=0.0.0.0
-        echo "ERROR. get master and slave ip failed."
-        exit 1
     fi
     #echo "cur_master_ip=$cur_master_ip, cur_slave_ip=$cur_slave_ip"
 }
 
 print_test_case_unpass() {
-    echo "unpass. error info:$ERROR_INFO"
+    end_time=`date +%s`
+    let used_time=$end_time-$begin_time
+    echo -e "\033[31m unpass. time used: $used_time seconds. error info:$ERROR_INFO \033[0m"
+    
+    echo "Detail info:"
+    cat /proc/drbd
+    crm_mon -Afr -1
+    
     exit 1
 }
 
 print_test_case_pass() {
-    echo "pass."
+    end_time=`date +%s`
+    let used_time=$end_time-$begin_time
+    echo -e "\033[32m pass. time used: $used_time seconds \033[0m"
 }
-test_case_1() {
-    echo "测试用例：master上的pg容器异常退出"
-    get_current_master_slave_ip
-    ssh root@$cur_master_ip "docker stop pg"
+
+print_test_result() {
     if ! check_status; then
         print_test_case_unpass
     fi
-
     print_test_case_pass
+    echo "----"
+}
+
+test_case_1() {
+    echo -e "\033[32m master上的pg容器异常退出 \033[0m"
+    get_current_master_slave_ip
+    ssh root@$cur_master_ip "docker stop pg" >>/dev/null
 }
 
 test_case_2() {
-    return 0
+    echo -e "\033[32m master上的redis容器异常退出 \033[0m"
+    get_current_master_slave_ip
+    ssh root@$cur_master_ip "docker stop redis" >>/dev/null
+
 }
 
 test_case_3() {
-    return 0
-}
-
-test_case_4() {
-    return 0
+    echo -e "\033[32m master上的beanstalkd容器异常退出 \033[0m"
+    get_current_master_slave_ip
+    ssh root@$cur_master_ip "docker stop beanstalkd" >>/dev/null
 }
 
 output_test_result() {
-    echo "Done."
+    echo -e "\033[32m Done. \033[0m"
     return 0
 }
 
