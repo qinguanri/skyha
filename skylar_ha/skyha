@@ -627,11 +627,11 @@ config() {
 enable() {
     arg=$1
     if [ "$arg" == "auto_recovery" ]; then
-        cat /etc/rc.d/rc.local | grep 'skyha recover'
+        cat /etc/rc.d/rc.local | grep 'skyha boot'
         if [ $? -eq 0 ]; then
             return 0
         fi
-        echo "$WORK_DIR/skyha recover >> $RECOVERY_LOG &" >> /etc/rc.d/rc.local
+        echo "$WORK_DIR/skyha boot >> $RECOVERY_LOG &" >> /etc/rc.d/rc.local
         chmod +x /etc/rc.local /etc/rc.d/rc.local
     fi
 }
@@ -639,10 +639,18 @@ enable() {
 disable() {
     arg=$1
     if [ "$arg" == "auto_recovery" ]; then
-        sed -i '/skyha recover/d' /etc/rc.d/rc.local
+        sed -i '/skyha boot/d' /etc/rc.d/rc.local
     fi
     return 0
 }
+
+boot() {
+    losetup /dev/loop9 /data/drbd.img
+    systemctl start docker.service
+    systemctl start pacemaker.service
+    pcs cluster unstandby
+}
+
 
 solve_split_brain() {
     $WORK_DIR/resource/drbd 'brain'
@@ -766,6 +774,8 @@ case "$1" in
     help|usage|-h|--help) usage;;
 
     recover)    recover $2;;
+ 
+    boot)       boot;;
 
     install)    install_all $@;;
 
