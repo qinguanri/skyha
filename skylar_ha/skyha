@@ -274,10 +274,10 @@ args_parse() {
     ## 找到一个未被挂载的设备，加入配置文件
     if [ "$my_ip" == "$master_ip" ]; then
         ## 先尝试卸载可能遗留的设备
-        dev=`losetup -a | grep 'drbd.img' | awk -F ":" {'print $1'}`
-        if [ -n "$dev" ]; then
-            losetup -d "$dev"
-            ssh root@$slave_ip "losetup -d $dev"
+        losetup_device=`losetup -a | grep 'drbd.img' | awk -F ":" {'print $1'}`
+        if [ -n "$losetup_device" ]; then
+            losetup -d "$losetup_device"
+            ssh root@$slave_ip "losetup -d $losetup_device"
         fi
 
         losetup_dev_m=`losetup -f`
