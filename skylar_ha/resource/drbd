@@ -140,6 +140,8 @@ set_master() {
     mkdir -p /drbd/nfsshare
     mkdir -p /drbd/nfsshare/exports
     chmod 777 /drbd/nfsshare
+    chmod 777 /drbd/nfsshare/exports
+
     mkdir -p /drbd/test
     touch /drbd/test/tmp
     umount /dev/drbd1
