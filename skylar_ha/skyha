@@ -17,6 +17,7 @@ PROC_NAME="skylar_ha"
 PROC_FILE="$PROC_NAME.tar.gz"
 
 RECOVERY_LOG="/var/log/skyha_recovery.log"
+losetup_dev_default=/dev/loop9
 
 ###############################################################################
 
