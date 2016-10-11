@@ -201,8 +201,8 @@ check_args_valid() {
         return 1
     fi
 
-    if [ ! -n "$losetup_dev" ]; then
-        echo "ERROR. losetup_dev is invalid. use default."
+    if [ ! -n "$losetup_dev" ] || [ "$losetup_dev" == "" ]; then
+        echo "ERROR. losetup_dev is invalid. use default: $losetup_dev_default"
         echo "losetup_dev=$losetup_dev_default" >> $WORK_DIR/conf/ha.conf
     fi
 

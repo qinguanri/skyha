@@ -33,9 +33,9 @@ The most commonly used skyha commands are:
     failover    Config failover for ha system. $0 failover <pg|redis>. e.g: $0 failover pg or $0 failover redis.
     help        Show usage.
     install     Install a ha system. $0 install master_ip=1.2.3.4 slave_ip=1.2.3.5 vip_master=1.2.3.6 \
-                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000
+                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000 losetup_dev=/dev/loop9
     config      Set master_ip, slave_ip and so on. $0 config master_ip=1.2.3.4 slave_ip=1.2.3.5 vip_master=1.2.3.6 \
-                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000
+                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000 losetup_dev=/dev/loop9
     recover     WHen master or slave crash, we need to 'recover' it. $0 recover.
     enable      Enable some function. e.g: $0 enable auto_recovery.
     disable     Disable some function. e.g: $0 disable auto_recovery.
@@ -269,34 +269,6 @@ args_parse() {
     if [ $? -eq 0 ]; then
         my_ip="$slave_ip"
     fi
-
-    losetup_dev=""
-    ## 找到一个未被挂载的设备，加入配置文件
-    if [ "$my_ip" == "$master_ip" ]; then
-        ## 先尝试卸载可能遗留的设备
-        losetup_device=`losetup -a | grep 'drbd.img' | awk -F ":" {'print $1'}`
-        if [ -n "$losetup_device" ]; then
-            losetup -d "$losetup_device"
-            ssh root@$slave_ip "losetup -d $losetup_device"
-        fi
-
-        losetup_dev_m=`losetup -f`
-        losetup_dev_s=`ssh root@$slave_ip "losetup -f"`
-        if [ "$losetup_dev_m" == "$losetup_dev_s" ] && [ "$losetup_dev_m" != "" ]; then
-            losetup_dev=$losetup_dev_m
-        else
-            losetup_dev=$losetup_dev_default
-        fi
-    else
-        losetup_dev_m=`ssh root@master_ip "cat $WORK_DIR/conf/ha.conf | grep losetup_dev | tail -1"`
-        losetup_dev_s=`losetup -f`
-        if [ "$losetup_dev_m" == "$losetup_dev_s" ]; then
-            losetup_dev="$losetup_dev_m"
-        else
-            losetup_dev="$losetup_dev_default"
-        fi
-    fi
-    echo "losetup_dev=$losetup_dev" >> $WORK_DIR/conf/ha.conf
 
     return 0
 }

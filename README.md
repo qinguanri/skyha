@@ -82,6 +82,7 @@
 
     可选参数说明：
     * drbd_size，drbd镜像块的大小（单位MB），默认值为1000
+    * losetup_dev, drbd挂载的设备，可以在master和slave上执行 ``` losetup -f ``` 找到可以挂载的设备，默认为/dev/loop9
 
 
 2. 在master和slave两台主机上，修改pg_hba.conf文件。在pg_hba.conf文件末尾 添加控制台IP（这里假设是192.168.142.140，请按实际情况修改ip）。pg_hba.conf文件路径为：$data_dir/pg/pg_hba.conf。访问pg的权限：
@@ -329,6 +330,25 @@ ns:0 nr:0 dw:26412 dr:38552 al:4 bm:0 lo:0 pe:0 ua:0 ap:0 ep:1 wo:f oos:75096
 
 ```
 # /opt/skylar_ha/skyha reset
+```
+
+### 6. 如果天擎的docker镜像包有更新，如何安装？
+
+当前redis、pg、beanstalkd的镜像包分别为skylar_pg_6.0.0.2100.tar，skylar_redis_6.0.0.2000.tar，skylar_beanstalkd_6.0.0.2000.tar，如果需要更新tar包，需要进行tar文件替换，用新的tar文件替换/opt/skylar_ha/dependent目录下的tar文件，最后再运行第2节中的安装操作。注意，（1）如果pg数据库的版本不变，保持pg9.5，就直接替换文件，不用改配置；（2）如果pg版本变化，比如从9.5升级到9.6，就需要修改部署脚本，更新部署代码包。
+
+
+### 7. 开启自动修复故障
+
+安装完成双机热备后，若主机重启，默认自动修复故障，自动恢复双机热备状态。但是自动修复并不保证100%修复成功，某些场景（e.g:硬盘损坏，空间不足，...）仍然需要人工介入修复。如果要禁用自动修复功能，则在需要禁用自动修复的主机上使用命令：
+
+```
+# /opt/skylar_ha/skyha disable auto_recovery       
+```
+
+反之，如果要启用自动修复，则运行命令：
+
+```
+# /opt/skylar_ha/skyha enable auto_recovery       
 ```
 
 ## changelog
