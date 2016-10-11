@@ -639,7 +639,7 @@ enable() {
 disable() {
     arg=$1
     if [ "$arg" == "auto_recovery" ]; then
-        sed -i '/skyha boot/d' /etc/rc.d/rc.local
+        sed -i '/skyha/d' /etc/rc.d/rc.local
     fi
     return 0
 }
