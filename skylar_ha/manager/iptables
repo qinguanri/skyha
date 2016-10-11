@@ -95,18 +95,26 @@ disable_dhcp() {
     
     cat $network_file | grep "dhcp\|DHCP" >> /dev/null
     if [ $? -eq 0 ]; then
-        echo "WARN. $network_file BOOTPROTO is dhcp. config it to static at first."
+        echo "ERROR. This host use dhcp to get ip. It should be config to static. please config it at this file:$network_file. After that, you can retry again."
+        ## TODO: 如果IP是DHCP获取的。直接返回报错，提示修改为静态IP。不在这脚本中进行调整dhcp。
+        #return 1
 
+        ## 如果想在这个脚本中自动调整为static，可以将上面的return 1注释掉即可。下面是自动调整为static的逻辑。
         cp $network_file /etc/sysconfig/backup_network-scripts_$device
         sed -i 's/dhcp/static/g' $network_file
         my_ip=$master_ip
-        ip addr | grep "slave_ip" >> /dev/null
+        ip addr | grep "$slave_ip" >> /dev/null
         if [ $? -eq 0 ]; then
             my_ip=$slave_ip
         fi
-        echo "IPADDR=$my_ip #add by skyha script
+
+        cat $network_file | grep 'skyha' >>/dev/null
+        if [ $? -ne 0 ]; then 
+            echo "IPADDR=$my_ip #add by skyha script
 NETMASK=255.255.255.0 #add by skyha script
 NM_CONTROLLED=no #add by skyha script" >> $network_file
+        fi
+
         echo $network_file
         systemctl restart network.service
         ip addr | grep $my_ip >> /dev/null
