@@ -26,11 +26,12 @@ prepare() {
     else
         hostnamectl set-hostname "$slave_hostname"
     fi
+
     mkdir -p $data_dir
 
     drbdadm secondary all
     drbdadm down skydata
-    losetup -d /dev/loop9
+    losetup -d $losetup_dev
 
     free_size=`df $data_dir | grep '/' | awk {'print $4'}`
     let free_size=$free_size/1000
@@ -80,11 +81,11 @@ install() {
         sndbuf-size 0;
     }
     on db1 {
-        disk /dev/loop9;
+        disk $losetup_dev;
         address $master_ip:7789;
     }
     on db2 {
-        disk /dev/loop9;
+        disk $losetup_dev;
         address $slave_ip:7789;
     }
 }" > /etc/drbd.d/skydata.res
@@ -118,7 +119,7 @@ set_master() {
     do
         cat /proc/drbd | grep 'cs:Connected' | grep 'ds:UpToDate/UpToDate' | grep 'Primary'
         if [ $? -ne 0 ]; then
-            losetup /dev/loop9 $drbd_dir/drbd.img
+            losetup $losetup_dev $drbd_dir/drbd.img
         else
             break
         fi
@@ -219,7 +220,7 @@ losetup_img() {
     do
         losetup -a | grep 'drbd.img'
         if [ $? -ne 0 ]; then
-            losetup /dev/loop9 $data_dir/drbd.img
+            losetup $losetup_dev $data_dir/drbd.img
         else
             break
         fi

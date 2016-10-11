@@ -317,7 +317,7 @@ recover() {
     do
         losetup -a | grep 'drbd.img'
         if [ $? -ne 0 ]; then
-            losetup /dev/loop9 $data_dir/drbd.img
+            losetup $losetup_dev $data_dir/drbd.img
         else
             break
         fi
@@ -645,7 +645,7 @@ disable() {
 }
 
 boot() {
-    losetup /dev/loop9 /data/drbd.img
+    losetup $losetup_dev /data/drbd.img
     systemctl start docker.service
     systemctl start pacemaker.service
     pcs cluster unstandby
