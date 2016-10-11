@@ -76,6 +76,44 @@ install() {
         return 1
     fi
 
+    if ! disable_dhcp; then
+        echo "ERROR. disable dhcp failed."
+        return 1
+    fi
+
+    return 0
+}
+
+
+disable_dhcp() {
+    source $WORK_DIR/conf/ha.conf
+    dev=`ip addr | grep -B 2"$master_ip\|$slave_ip" | head -1 | awk {'print $2'} | awk -F ":" {'print $1'}`
+    network_file="/etc/sysconfig/network-scripts/$dev"
+    
+    cat $network_file | grep "dhcp\|DHCP" >> /dev/null
+    if [ $? -eq 0 ]; then
+        echo "WARN. $network_file BOOTPROTO is dhcp. I will config it to static."
+        cp $network_file /etc/sysconfig/backup_network-scripts_$dev
+        sed -i 's/dhcp/static/g' $network_file
+        my_ip=$master_ip
+        ip addr | grep "slave_ip" >> /dev/null
+        if [ $? -eq 0 ]; then
+            my_ip=$slave_ip
+        fi
+        echo "IPADDR=$my_ip #add by skyha script
+NETMASK=255.255.255.0 #add by skyha script
+NM_CONTROLLED=no #add by skyha script" >> $network_file
+        echo $network_file
+        systemctl restart network.service
+        ip addr | grep $my_ip >> /dev/null
+        if [ $? -ne 0 ]; then
+            echo "ERROR. disable dhcp failed."
+            mv -f /etc/sysconfig/backup_network-scripts_$dev $network_file
+        else
+            echo "OK. dhcp is disable."
+        fi
+    fi
+
     return 0
 }
 
