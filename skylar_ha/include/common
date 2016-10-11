@@ -201,42 +201,10 @@ check_args_valid() {
         return 1
     fi
 
-
-    my_ip="$master_ip"
-    ip addr | grep "$slave_ip" >> /dev/null
-    if [ $? -eq 0 ]; then
-        my_ip="$slave_ip"
+    if [ ! -n "$losetup_dev" ]; then
+        echo "ERROR. losetup_dev is invalid. use default."
+        echo "losetup_dev=$losetup_dev_default" >> $WORK_DIR/conf/ha.conf
     fi
-
-    losetup_dev=""
-    ## 找到一个未被挂载的设备，加入配置文件
-    if [ "$my_ip" == "$master_ip" ]; then
-        ## 先尝试卸载可能遗留的设备
-        dev=`losetup -a | grep 'drbd.img' | awk -F ":" {'print $1'}`
-        if [ -n "$dev" ]; then
-            losetup -d "$dev"
-            if [ "$my_ip" == "$master_ip" ]; then
-                ssh root@$slave_ip "losetup -d $dev"
-            fi
-        fi
-
-        losetup_dev_m=`losetup -f`
-        losetup_dev_s=`ssh root@$slave_ip "losetup -f"`
-        if [ "$losetup_dev_m" == "$losetup_dev_s" ] && [ "$losetup_dev_m" != "" ]; then
-            losetup_dev=$losetup_dev_m
-        else
-            losetup_dev=$losetup_dev_default
-        fi
-    else
-        losetup_dev_m=`ssh root@master_ip "cat $WORK_DIR/conf/ha.conf | grep losetup_dev | tail -1"`
-        losetup_dev_s=`losetup -f`
-        if [ "$losetup_dev_m" == "$losetup_dev_s" ]; then
-            losetup_dev="$losetup_dev_m"
-        else
-            losetup_dev="$losetup_dev_default"
-        fi
-    fi
-    echo "losetup_dev=$losetup_dev" >> $WORK_DIR/conf/ha.conf
 
     return 0
 }
