@@ -99,46 +99,65 @@
 
 ```
     [root@db1 home]# /opt/skylar_ha/skyha show
-  Last updated: Fri Jul 8 14:26:10 2016 Last change: Fri Jul 8 14:25:01 2016 by root via crm_attribute on pcmk3
-  Stack: corosync
-  Current DC: db1 (version 1.1.13-10.el7_2.2-44eb2dd) - partition with quorum
-  2 nodes and 8 resources configured
+  [root@db1 skylar_ha]# ./skyha show
 
-  Online: [ db1 db2 ]
+Base Info:
+  * vip: 192.168.142.191
+  * db1: 192.168.142.171
+  * db2: 192.168.142.172
 
-  Full list of resources:
+Space Info:
+* Node db1:
+164M    /data/drbd.img
+133M    /data/recover
+20K     /drbd/nfsshare
+99M     /drbd/pg
+61M     /drbd/redis
+0       /drbd/test
+* Node db2:
+164M    /data/drbd.img
+205M    /data/recover
+16K     /drbd/nfsshare
+98M     /drbd/pg
+37M     /drbd/redis
 
-  bstkd (ocf::heartbeat:docker): Started db1
-  Master/Slave Set: drbd-cluster [skydata]
-  Masters: [ db1 ]
-  Slaves: [ db2 ]
-  skyfs (ocf::heartbeat:Filesystem): Started db1
-  Master/Slave Set: pgsql-cluster [pgsql]
-  Masters: [ db1 ]
-  Slaves: [ db2 ]
-  Resource Group: master-group
-  vip-master (ocf::heartbeat:IPaddr2): Started db1
-  redis (ocf::heartbeat:docker): Started db1
+NFS Info:
+Export list for 192.168.142.191:
+/drbd/nfsshare/exports *
 
-  Node Attributes:
-  * Node db2:
-  + master-pgsql : 100
-  + master-skydata : 10000
-  + pgsql-data-status : STREAMING|SYNC
-  + pgsql-status : HS:sync
-  * Node db1:
-  + master-pgsql : 1000
-  + master-skydata : 10000
-  + pgsql-data-status : LATEST
-  + pgsql-master-baseline : 0000000003000090
-  + pgsql-status : PRI
+Last updated: Tue Oct 11 16:46:14 2016          Last change: Tue Oct 11 16:43:57 2016 by hacluster via crmd on db1
+Stack: corosync
+Current DC: db1 (version 1.1.13-10.el7_2.2-44eb2dd) - partition with quorum
+2 nodes and 9 resources configured
 
-  Migration Summary:
-  * Node db1:
-  * Node db2:
+Online: [ db1 db2 ]
+
+Full list of resources:
+
+ Master/Slave Set: drbd-cluster [skydata]
+     Masters: [ db1 ]
+     Slaves: [ db2 ]
+ Resource Group: master-group
+     skyfs      (ocf::heartbeat:Filesystem):    Started db1
+     vip-master (ocf::heartbeat:IPaddr2):       Started db1
+     postgres   (ocf::heartbeat:docker):        Started db1
+     redis      (ocf::heartbeat:docker):        Started db1
+     bstkd      (ocf::heartbeat:docker):        Started db1
+     nfs-daemon (ocf::heartbeat:nfsserver):     Started db1
+     nfs-root   (ocf::heartbeat:exportfs):      Started db1
+
+Node Attributes:
+* Node db1:
+    + master-skydata                    : 10000     
+* Node db2:
+    + master-skydata                    : 10000     
+
+Migration Summary:
+* Node db1:
+* Node db2:
 ```
 
-上面的信息中，
+上面的信息中，分别列出了IP、磁盘占用、NFS挂载点、主从角色等信息：
 * ```Online: [ db1 db2 ]```表示db1 和 db2 ，两个主机都正常在线。如果出现offline或standby标示， 则表示对应的主机状态异常。
 * ```Full list of resources:```列出了当前热备系统中的资源状态，列出了redis、beanstalkd、pg、drbd的双机热备状态。本例子中显示db1是master。
 * ```Node Attributes```列出了双机热备中数据同步状态。当master节点上的```pgsql-data-status : LATEST```， slave节点上的```pgsql-data-status : STREAMING|SYNC```时，表示pg的数据同步正常。当master节点上显示```master-skydata : 10000```，slave节点上显示```master-skydata : 10000```时，表示drbd数据同步正常。
