@@ -121,6 +121,16 @@ NM_CONTROLLED=no #add by skyha script" >> $network_file
     return 0
 }
 
+enable_dhcp() {
+    device=`ip addr | grep -B 2 "$master_ip\|$slave_ip" | head -1 | awk {'print $2'} | awk -F ":" {'print $1'}`
+    network_file="/etc/sysconfig/network-scripts/ifcfg-$device"
+    if [ ! -n $device ]; then
+        network_file=`ls /etc/sysconfig/network-scripts/ifcfg-e* | head -1`
+    fi
+    sed -i 's/static/dhcp/g' $network_file
+    systemctl restart network.service
+}
+
 clean() {
     return 0
 }
