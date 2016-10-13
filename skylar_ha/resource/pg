@@ -199,7 +199,7 @@ failover() {
         name="pg" monitor_cmd="su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\"" \
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="10s" on-fail="restart" \
-        op stop timeout="60s" interval="0s" on-fail="standby"
+        op stop timeout="60s" interval="0s" on-fail="block"
 
     return $?
 
