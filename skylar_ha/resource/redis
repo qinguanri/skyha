@@ -96,7 +96,7 @@ failover() {
         name="redis" monitor_cmd="redis-cli time >/dev/null" \
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="10s" on-fail="restart" \
-        op stop timeout="60s" interval="0s" on-fail="standby"
+        op stop timeout="60s" interval="0s" on-fail="block"
 
     return $?
 }
