@@ -21,8 +21,6 @@ fi
 
 prepare() {
     systemctl stop nfs-server.service
-
-    return 0
 }
 
 install() {
@@ -46,16 +44,11 @@ install() {
         echo "ERROR. systemctl start nfs-server.service failed."
         return 1
     fi
-
-    return 0
 }
 
 failover() {
     pcs -f resource_cfg resource create nfs-daemon nfsserver nfs_shared_infodir=/drbd/nfsshare/nfsinfo nfs_no_notify=true
     pcs -f resource_cfg resource create nfs-root exportfs clientspec=* options=rw,sync,no_root_squash directory=/drbd/nfsshare/exports fsid=0
-    ## pcs -f resource_cfg resource create nfs-notify nfsnotify source_host=$vip_master
-
-    return 0
 }
 
 auto_recover() {

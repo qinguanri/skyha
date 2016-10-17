@@ -43,8 +43,6 @@ prepare() {
         docker load < "$REDIS_IMAGE_FILE"
         sleep 1
     fi
-
-    return 0
 }
 
 install_redis() {
@@ -53,16 +51,6 @@ install_redis() {
         docker stop $REDIS_CONTAINER
         docker rm $REDIS_CONTAINER
     fi
-
-    #docker run --name=$REDIS_CONTAINER -d --net=host --privileged=true $REDIS_IMAGE_NAME
-    #if ! is_redis_run; then
-    #    echo "ERROR. Start redis failed."
-    #    return 1
-    #fi
-    #docker stop $REDIS_CONTAINER
-
-    #echo "OK. Install redis succeed."
-    return 0
 }
 
 is_redis_run() {
@@ -97,8 +85,6 @@ failover() {
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="10s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
-
-    return $?
 }
 
 check_ha_status() {
@@ -131,8 +117,6 @@ recover() {
 
     NODENAME=$HOSTNAME
     pcs cluster unstandby $NODENAME
-
-    return $?
 }
 
 backup_data() {
@@ -187,8 +171,6 @@ auto_recover() {
     fi
 
     chmod +x /etc/rc.local /etc/rc.d/rc.local
-
-    return 0
 }
 
 clean() {

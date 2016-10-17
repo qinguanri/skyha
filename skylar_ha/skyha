@@ -86,8 +86,6 @@ prepare() {
 
     # restart iptables.service to update configuration
     systemctl restart iptables.service
-
-    return 0
 }
 
 #
@@ -107,8 +105,6 @@ install() {
             fi
         fi
     done
-
-    return 0
 }
 
 #
@@ -250,8 +246,6 @@ failover() {
     fi
 
     install_finished
-
-    return 0
 }
 
 #
@@ -269,8 +263,6 @@ args_parse() {
     if [ $? -eq 0 ]; then
         my_ip="$slave_ip"
     fi
-
-    return 0
 }
 
 #
@@ -299,8 +291,6 @@ reset() {
     docker rmi skylar_redis
     docker rmi skylar_pg
     docker rmi skylar_beanstalkd
-
-    return 0
 }
 
 #
@@ -602,8 +592,6 @@ install_all() {
         echo "ERROR. Config failover failed."
         return 1
     fi
-
-    return 0
 }
 
 config() {

@@ -19,8 +19,6 @@ prepare() {
         echo "ERROR. var data_dir is null"
         return 1
     fi
-
-    return 0
 }
 
 install_rsyncd() {
@@ -69,8 +67,6 @@ dont compress = *.gz *.tgz *.zip *.z *.rpm *.iso *.bz2 *.tbz" > /etc/rsyncd.conf
         echo "ERROR. systemctl enable rsyncd.service failed."
         return 1
     fi
-
-    return 0
 }
 
 clean() {

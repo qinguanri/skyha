@@ -75,13 +75,6 @@ install() {
     service iptables save
     systemctl enable iptables.service
     systemctl restart iptables.service
-
-    if [ $? -ne 0 ]; then
-        echo "ERROR. start iptables failed."
-        return 1
-    fi
-
-    return 0
 }
 
 

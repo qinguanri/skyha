@@ -39,8 +39,6 @@ prepare() {
         echo "ERROR. There is not enough space for drbd at $my_ip."
         return 1
     fi
-
-    return 0
 }
 
 install() {
@@ -94,14 +92,9 @@ install() {
 
     echo "semanage permissive -a drbd_t, please wait seconds ..."
     semanage permissive -a drbd_t
-
     drbdadm create-md skydata
-
     modprobe drbd
-
     drbdadm up skydata
-
-    return 0
 }
 
 set_master() {
@@ -167,8 +160,6 @@ failover() {
     sleep 2
     echo "config skyfs ..."
     pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs"
-
-    return $?
 }
 
 auto_recover() {
@@ -183,8 +174,6 @@ auto_recover() {
     fi
 
     chmod +x /etc/rc.local /etc/rc.d/rc.local
-
-    return 0
 }
 
 recover() {
@@ -210,8 +199,6 @@ recover() {
         echo "WARN. DRBD status is incorrect. Try to solve split brain on slave."
         solve_split_brain
     fi
-
-    return $?
 }
 
 losetup_img() {

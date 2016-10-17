@@ -108,10 +108,6 @@ baseurl=file:///yum_iptables/
 gpgcheck=0
 enabled=1" > /etc/yum.repos.d/CentOS-Iptables.repo
     
-    if [ $? -ne 0 ]; then
-        echo "ERROR. create iptables repo failed."
-        return 1
-    fi
 
     ###############################################################################
     # create repo for drbd
@@ -130,10 +126,6 @@ baseurl=file:///yum_drbd/
 gpgcheck=0
 enabled=1" > /etc/yum.repos.d/CentOS-Drbd.repo
 
-    if [ $? -ne 0 ]; then
-        echo "ERROR. create drbd repo failed."
-        return 1
-    fi
 
     ###############################################################################
     # create repo for nfs
@@ -151,11 +143,6 @@ name=Nfs Yum
 baseurl=file:///yum_nfs/
 gpgcheck=0
 enabled=1" > /etc/yum.repos.d/CentOS-Nfs.repo
-
-    if [ $? -ne 0 ]; then
-        echo "ERROR. create nfs repo failed."
-        return 1
-    fi
 
     return 0
 }

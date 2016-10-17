@@ -42,8 +42,6 @@ prepare() {
     [ -f /etc/corosync/corosync.conf ] && rm -f /etc/corosync/corosync.conf
     
     systemctl stop pacemaker.service
-
-    return 0
 }
 
 install_pacemaker() {
@@ -72,8 +70,6 @@ install_pacemaker() {
         echo "ERROR. pcs process run error."
         return 1
     fi
-
-    return 0
 }
 
 clean() {

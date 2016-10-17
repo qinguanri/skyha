@@ -54,8 +54,6 @@ prepare() {
         echo "docker load < $PG_IMAGE_FILE. Please wait minutes..."
         docker load < "$PG_IMAGE_FILE"
     fi
-
-    return 0
 }
 
 install_pg() {
@@ -64,20 +62,6 @@ install_pg() {
         docker stop $PG_CONTAINER
         docker rm $PG_CONTAINER
     fi
-
-    #docker run -d --net=host --privileged=true --name "$PG_CONTAINER" --restart=always "$PG_IMAGE_NAME"
-
-    #if [ $? -ne 0 ]; then
-    #    echo "ERROR. docke run failed, cmd: docker run -d --net=host --privileged=true --name $PG_CONTAINER --restart=always $PG_IMAGE_NAME"
-    #    return 1
-    #fi
-
-    #if ! check_pg_run; then
-    #    echo "ERROR. PG is not running."
-    #    return 1
-    #fi
-    #docker stop $PG_CONTAINER
-    return 0
 }
 
 check_pg_run() {
@@ -110,8 +94,6 @@ auto_recover() {
     fi
 
     chmod +x /etc/rc.local /etc/rc.d/rc.local
-
-    return 0
 }
 
 recover() {
@@ -132,8 +114,6 @@ recover() {
 
     NODENAME=$HOSTNAME
     pcs cluster unstandby $NODENAME
-
-    return $?
 }
 
 backup_data() {
@@ -200,9 +180,6 @@ failover() {
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="10s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
-
-    return $?
-
 }
 
 # todo
