@@ -50,6 +50,7 @@ install_redis() {
         docker stop $REDIS_CONTAINER
         docker rm $REDIS_CONTAINER
     fi
+    return 0
 }
 
 is_redis_run() {

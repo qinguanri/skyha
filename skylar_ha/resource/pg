@@ -59,6 +59,7 @@ install_pg() {
         docker stop $PG_CONTAINER
         docker rm $PG_CONTAINER
     fi
+    return 0
 }
 
 check_pg_run() {

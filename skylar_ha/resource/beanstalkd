@@ -40,6 +40,7 @@ install_bstkd() {
         docker stop $BSTKD_CONTAINER
         docker rm $BSTKD_CONTAINER
     fi
+    return 0
 }
 
 is_bstkd_run() {
