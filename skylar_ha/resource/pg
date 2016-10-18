@@ -16,7 +16,6 @@ PG_VER_DEF=9.5
 
 PG_DIR_BIN="/usr/lib/postgresql/$PG_VER_DEF/bin"
 PG_DIR_DATA="/var/lib/postgresql/$PG_VER_DEF/main"
-# PG_DIR_XLOG="/var/lib/postgresql/$PG_VER_DEF/xlog_archive"
 
 PG_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_pg*"`
 PG_IMAGE_NAME="skylar_pg"
@@ -27,8 +26,6 @@ PG_USER="postgres"
 PG_BAK="$data_dir/pg_backup"
 pg_dir="/drbd/pg"
 PG_PORT="5432/tcp"
-
-PG_RECOVER_LOG="/var/log/pg_ha_auto_recover.log"
 
 ###############################################################################
 
@@ -79,21 +76,6 @@ check_pg_run() {
         let "test_count++"
     done
     return 1
-}
-
-
-# set auto execute recover when host is rebooted
-auto_recover() {
-    if [ ! -f /etc/rc.local ]; then
-        echo "#!/bin/sh" > /etc/rc.local
-    fi
-
-    cat /etc/rc.local | grep 'skyha recover pg incr'
-    if [ $? -ne 0 ]; then
-        echo "$WORK_DIR/skyha recover pg incr >> $PG_RECOVER_LOG" >> /etc/rc.local
-    fi
-
-    chmod +x /etc/rc.local /etc/rc.d/rc.local
 }
 
 recover() {
@@ -208,9 +190,6 @@ case "$1" in
                 exit $?;;
 
     recover)    recover $2
-                exit $?;;
-
-    auto_recover)    auto_recover
                 exit $?;;
 
     status)     check_status

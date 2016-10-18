@@ -20,7 +20,6 @@ REDIS_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_redis*"`
 REDIS_IMAGE_NAME="skylar_redis"
 REDIS_CONTAINER="redis"
 REDIS_PORT="6379"
-REDIS_RECOVER_LOG="/var/log/redis_ha_auto_recover.log"
 
 redis_dir="/drbd/redis"
 
@@ -80,8 +79,8 @@ is_redis_run() {
 
 failover() {
     pcs -f resource_cfg resource create redis docker image=skylar_redis:latest \
-        run_opts="--net=host --privileged=true -v $redis_dir:/var/lib/redis/" \
-        name="redis" monitor_cmd="redis-cli time >/dev/null" \
+        run_opts="--net=host --privileged=true -v $redis_dir:/var/lib/redis/" name="redis"\
+        monitor_cmd="redis-cli time >/dev/null" \
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="10s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
@@ -160,19 +159,6 @@ backup_data() {
     echo "Backup redis data finished."   
 }
 
-auto_recover() {
-    if [ ! -f /etc/rc.local ]; then
-        echo "#!/bin/sh" > /etc/rc.local
-    fi
-
-    cat /etc/rc.local | grep 'skyha recover redis incr'
-    if [ $? -ne 0 ]; then
-        echo "$WORK_DIR/skyha recover redis incr>> $REDIS_RECOVER_LOG" >> /etc/rc.local
-    fi
-
-    chmod +x /etc/rc.local /etc/rc.d/rc.local
-}
-
 clean() {
     return 0
 }
@@ -190,9 +176,6 @@ case "$1" in
                 exit $?;;
 
     recover)    recover
-                exit $?;;
-
-    auto_recover)    auto_recover
                 exit $?;;
 
     status)     check_ha_status

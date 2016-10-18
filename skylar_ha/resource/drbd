@@ -162,20 +162,6 @@ failover() {
     pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs"
 }
 
-auto_recover() {
-    if [ ! -f /etc/rc.local ]; then
-        echo "#!/bin/sh" > /etc/rc.local
-    fi
-
-    cat /etc/rc.local | grep 'skyha recover drbd incr'
-    if [ $? -ne 0 ]; then
-        DRBD_RECOVER_LOG=/var/log/drbd_auto_recover.log
-        echo "$WORK_DIR/skyha recover drbd incr>> $DRBD_RECOVER_LOG" >> /etc/rc.local
-    fi
-
-    chmod +x /etc/rc.local /etc/rc.d/rc.local
-}
-
 recover() {
     echo "recover drbd ..."
     systemctl status docker.service

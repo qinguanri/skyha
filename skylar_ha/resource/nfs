@@ -51,12 +51,7 @@ failover() {
     pcs -f resource_cfg resource create nfs-root exportfs clientspec=* options=rw,sync,no_root_squash directory=/drbd/nfsshare/exports fsid=0
 }
 
-auto_recover() {
-    return 0
-}
-
 recover() {
-    echo "recover nfs ..."
     return 0
 }
 

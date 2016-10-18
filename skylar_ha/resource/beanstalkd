@@ -16,7 +16,6 @@ BSTKD_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_beanstalkd*"`
 BSTKD_IMAGE_NAME="skylar_beanstalkd"
 BSTKD_CONTAINER="beanstalkd"
 BSTKD_PORT="11300"
-BSTKD_RECOVER_LOG="/var/log/banstalkd_ha_auto_recover.log"
 
 . $WORK_DIR/conf/ha.conf
 ###############################################################################
@@ -108,18 +107,6 @@ recover() {
     pcs cluster unstandby $NODENAME
 }
 
-auto_recover() {
-    if [ ! -f /etc/rc.local ]; then
-        echo "#!/bin/sh" > /etc/rc.local
-    fi
-
-    cat /etc/rc.local | grep 'skyha recover beanstalkd incr'
-    if [ $? -ne 0 ]; then
-        echo "$WORK_DIR/skyha recover beanstalkd incr >> $BSTKD_RECOVER_LOG" >> /etc/rc.local
-    fi
-
-    chmod +x /etc/rc.local /etc/rc.d/rc.local
-}
 
 clean() {
     return 0
@@ -138,9 +125,6 @@ case "$1" in
                 exit $?;;
 
     recover)    recover $2
-                exit $?;;
-
-    auto_recover)    auto_recover
                 exit $?;;
 
     status)     check_ha_status
