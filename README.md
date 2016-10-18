@@ -1,5 +1,8 @@
+#skyha [![Version Status](https://img.shields.io/badge/release-v1.0.0-orange.svg)]
+[![License](https://img.shields.io/badge/LICENSE-Apache2.0-ff69b4.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
+
+
 # PG+Redis+Bstlkd高可用部署
--------
 
 本文集成pacemaker、drbd、docker、nfs，搭建pg、redis、beanstalkd容器的双机热备。
 
