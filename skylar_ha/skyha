@@ -252,9 +252,9 @@ failover() {
 # get args from input, and output args into ha.conf
 #
 args_parse() {
-    args="$@"
-    # write args into ha.conf
-    echo "$args" | xargs -n 1 > $WORK_DIR/conf/ha.conf
+    arguments="$@"
+
+    echo "$arguments" | xargs -n 1 > $WORK_DIR/conf/ha.conf
 
     source $WORK_DIR/conf/ha.conf
 
@@ -262,6 +262,12 @@ args_parse() {
     ip addr | grep "$slave_ip" >> /dev/null
     if [ $? -eq 0 ]; then
         my_ip="$slave_ip"
+    fi
+
+    if ! check_args_valid; then
+        echo "ERROR. arguments invalid"
+        usage
+        exit 1
     fi
 }
 
@@ -374,8 +380,6 @@ check_status() {
             fi
         fi
     done
-
-    return 0
 }
 
 check_master_status() {
@@ -412,16 +416,15 @@ check_master_status() {
         return 0
     done
     echo "ERROR. Master status is incorrect."
+    return 1
 }
 
 master_is_work() {
     ping -c 1 "$vip_master"
-    return $?
 }
 
 slave_is_work() {
     check_status
-    return $?
 }
 
 recover_master() {
@@ -439,8 +442,6 @@ recover_master() {
     systemctl start pacemaker.service
     sleep 1
     pcs cluster unstandby $HOSTNAME
-
-    return 0
 }
 
 recover_slave() {
@@ -524,27 +525,15 @@ install_finished() {
 check_args_valid()
 {
     $WORK_DIR/include/common check_args_valid
-    return $?
 }
 
 #
 # install all resource and manager's for all hosts. Then config failover for all hosts.
 #
 install_all() {
-    args=($@)
-    unset args[0]
-    args_parse ${args[@]}
-
-    if [ $? -ne 0 ]; then
-        echo "ERROR. args parse failed."
-        usage
-        exit 1
-    fi
-
-    if ! check_args_valid; then
-        echo "ERROR. args are not valid."
-        return 1
-    fi
+    arguments=($@)
+    unset arguments[0]
+    args_parse ${arguments[@]}
 
     find $INSTALL_DIR -name "$PROC_FILE"
     if [ $? -ne 0 ]; then
@@ -573,7 +562,7 @@ install_all() {
     fi
 
     echo "******* 2. Install ..."
-    run ${args[@]}
+    run ${arguments[@]}
     if [ $? -ne 0 ]; then
         echo "ERROR. Install at master failed."
         return 1
@@ -586,7 +575,6 @@ install_all() {
     fi
 
     echo "******* 3. Config failover ..."
-    #TODO: should support failover config pg redis, don't need to config bstkd failover here.
     failover
     if [ $? -ne 0 ]; then
         echo "ERROR. Config failover failed."
@@ -595,21 +583,9 @@ install_all() {
 }
 
 config() {
-    args=($@)
-    unset args[0]
-    args_parse ${args[@]}
-    if [ $? -ne 0 ]; then
-        echo "ERROR. argument error."
-        usage
-        exit 1
-    fi
-
-    if ! check_args_valid; then
-        echo "ERROR. args invalid"
-        usage
-        exit 1
-    fi
-
+    arguments=($@)
+    unset arguments[0]
+    args_parse ${arguments[@]}
     echo "config succeed."
 }
 
@@ -630,7 +606,6 @@ disable() {
     if [ "$arg" == "auto_recovery" ]; then
         sed -i '/skyha/d' /etc/rc.d/rc.local
     fi
-    return 0
 }
 
 boot() {
