@@ -93,8 +93,9 @@
     * slave_hostname，slave主机的hostname。
 
     可选参数说明：
+    
     * drbd_size，drbd镜像块的大小（单位MB），默认值为1000
-    * losetup_dev, drbd挂载的设备，取值范围一般为/dev/loop2 ~ /dev/loop99之间空闲的设备。 ``` losetup -a ``` 命令查看已占用的设备。默认为/dev/loop9
+    * losetup_dev, drbd挂载的设备，取值范围一般为/dev/loop2 ~ /dev/loop99之间空闲的设备。 ``` losetup -a ``` 命令查看已占用的设备。默认为/dev/loop9
 
 
 2. 在master和slave两台主机上，修改pg_hba.conf文件。在pg_hba.conf文件末尾 添加控制台IP（这里假设是192.168.142.140，请按实际情况修改ip）。pg_hba.conf文件路径为：$data_dir/pg/pg_hba.conf。访问pg的权限：
