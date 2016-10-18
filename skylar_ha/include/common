@@ -158,13 +158,13 @@ check_args_valid() {
 
     ping -c 1 "$master_ip"
     if [ $? -ne 0 ]; then
-        echo "ERROR. ping master_ip failed"
+        echo "ERROR. ping $master_ip failed"
         return 1
     fi
 
     ping -c 1 "$slave_ip"
     if [ $? -ne 0 ]; then
-        echo "ERROR. ping slave_ip failed"
+        echo "ERROR. ping $slave_ip failed"
         return 1
     fi
 

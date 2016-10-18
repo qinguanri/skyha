@@ -467,8 +467,6 @@ recover_slave() {
 # check args and install just for one host.
 # 
 run() {
-    args_parse $@
-
     if [ $? -ne 0 ]; then
         echo "ERROR. args parse failed."
         exit 1
@@ -491,9 +489,10 @@ run() {
 }
 
 setup() {
-    args=($@)
-    unset args[0]
-    run ${args[@]}
+    arguments=($@)
+    unset arguments[0]
+    args_parse ${arguments[@]} 
+    run
 }
 
 install_finished() {
@@ -562,7 +561,7 @@ install_all() {
     fi
 
     echo "******* 2. Install ..."
-    run ${arguments[@]}
+    run
     if [ $? -ne 0 ]; then
         echo "ERROR. Install at master failed."
         return 1
