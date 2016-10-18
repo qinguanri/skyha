@@ -532,6 +532,7 @@ check_args_valid()
 install_all() {
     arguments=($@)
     unset arguments[0]
+    args=$arguments
     args_parse ${arguments[@]}
 
     find $INSTALL_DIR -name "$PROC_FILE"
@@ -567,7 +568,7 @@ install_all() {
         return 1
     fi
 
-    ssh root@$slave_ip "$INSTALL_DIR/$PROC_NAME/skyha setup ${arguments[@]}"
+    ssh root@$slave_ip "$INSTALL_DIR/$PROC_NAME/skyha setup ${args[@]}"
     if [ $? -ne 0 ]; then
         echo "ERROR. Install at slave failed."
         return 1
