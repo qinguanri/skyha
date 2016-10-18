@@ -189,7 +189,7 @@ check_args_valid() {
     fi
 
     if [ ! -n "$losetup_dev" ] || [ "$losetup_dev" == "" ]; then
-        echo "ERROR. losetup_dev is invalid. use default: $losetup_dev_default"
+        echo "WARN. losetup_dev is null.use default: $losetup_dev_default"
         echo "losetup_dev=$losetup_dev_default" >> $WORK_DIR/conf/ha.conf
     fi
 
