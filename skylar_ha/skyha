@@ -561,12 +561,12 @@ install_all() {
         ssh root@$slave_ip "mkdir -p $INSTALL_DIR"
         scp $INSTALL_DIR/$PROC_FILE root@$slave_ip:$INSTALL_DIR
         ssh root@$slave_ip "cd $INSTALL_DIR; tar xzvf $PROC_FILE; chmod +x $INSTALL_DIR/$PROC_NAME/skyha"
-        scp $INSTALL_DIR/$PROC_NAME/conf/ha.conf root@$slave_ip:/$INSTALL_DIR/$PROC_NAME/conf
         if [ $? -ne 0 ]; then
             echo "ERROR. scp from $master_ip to $slave_ip failed."
             return 1
         fi
     fi
+    scp $INSTALL_DIR/$PROC_NAME/conf/ha.conf root@$slave_ip:$INSTALL_DIR/$PROC_NAME/conf
 
     echo "******* 2. Install ..."
     run
