@@ -2,14 +2,9 @@
 #
 # Description: The control program for build a ha system.
 #              Main program: (1) prepare. (2) install (3) failover (4) recover
-#
 # Authors:      Qin Guanri
-#
 # Copyright:    2016 403709339@qq.com
-# License:      
-#
 ###############################################################################
-# Global:
 
 WORK_DIR=$(cd `dirname $0`; pwd)
 INSTALL_DIR=$(cd $WORK_DIR; cd ../; pwd)
@@ -18,9 +13,6 @@ PROC_FILE="$PROC_NAME.tar.gz"
 
 RECOVERY_LOG="/var/log/skyha_recovery.log"
 losetup_dev_default=/dev/loop9
-
-###############################################################################
-
 
 usage() {
     cat <<END
@@ -44,10 +36,8 @@ The most commonly used skyha commands are:
 END
 }
 
-#
-# do prepare before install. 
-# prepare for environment, check args, check files and so on.
-#
+
+# do prepare before install.  prepare for environment, check args, check files and so on.
 prepare() {
     if [ ! -f "$WORK_DIR/conf/ha.conf" ]; then
         echo "ERROR. can not find file: $WORK_DIR/conf/ha.conf"
@@ -88,10 +78,8 @@ prepare() {
     systemctl restart iptables.service
 }
 
-#
-# invoke every manager's and resource's install functions.
-# install manager at first, then install resource
-#
+
+# invoke every manager's and resource's install functions. install manager at first, then install resource
 install() {
     echo "kill other yum process."
     kill -9 $(ps -ef | grep 'yum' | awk {'print $2'})
@@ -107,10 +95,8 @@ install() {
     done
 }
 
-#
-# failover $mode.   $mode can be STANDALONE or MS. 
-# config failover for each resource. when it finished, resource should be reach on ha status.
-#
+
+# failover $mode.   $mode can be STANDALONE or MS.  config failover for each resource. when it finished, resource should be reach on ha status.
 failover() {
     mode=$1
     if [ "$mode" != "STANDALONE" ]; then
@@ -254,9 +240,8 @@ failover() {
     install_finished
 }
 
-#
+
 # get args from input, and output args into ha.conf
-#
 args_parse() {
     if [ ! -f $WORK_DIR/conf/ha.conf ]; then
         arguments="$@"
@@ -278,9 +263,8 @@ args_parse() {
     fi
 }
 
-#
+
 # invoke manager's and resource's clean method. clean some configs.
-#
 reset() {
     docker stop redis
     docker stop pg
@@ -306,9 +290,8 @@ reset() {
     docker rmi skylar_beanstalkd
 }
 
-#
+
 # invoke the resouce's recover method. recover resouce back to ha status.
-#
 recover() {
     if check_status; then
         echo "OK. HA status is correct."
@@ -470,9 +453,8 @@ recover_slave() {
     done
 }
 
-#
+
 # check args and install just for one host.
-# 
 run() {
     if [ $? -ne 0 ]; then
         echo "ERROR. args parse failed."
@@ -533,9 +515,8 @@ check_args_valid()
     $WORK_DIR/include/common check_args_valid
 }
 
-#
+
 # install all resource and manager's for all hosts. Then config failover for all hosts.
-#
 install_all() {
     arguments=($@)
     unset arguments[0]
@@ -735,40 +716,23 @@ version() {
 
 # What kind of command ？
 case "$1" in
-    failover)   failover;;
-
-    args_parse) args_parse $@;;
-
-    prepare)    prepare;;
-    
-    reset)      reset;;
-
-    help|usage|-h|--help) usage;;
-
-    recover)    recover $2;;
- 
-    boot)       boot;;
-
-    install)    install_all $@;;
-
-    config)     config $@;;
-
-    standalone) failover STANDALONE;;
-
-    enable)     enable $2;;
-
-    disable)    disable $2;;
-    
-    brain)      solve_split_brain;;
-    
-    show)       show_status;;
-    
-    switch-master-slave) switch;;
-    
-    setup)      setup $@;;
-
+    failover)                failover;;
+    args_parse)              args_parse $@;;
+    prepare)                 prepare;;    
+    reset)                   reset;;
+    recover)                 recover $2;;
+    boot)                    boot;;
+    install)                 install_all $@;;
+    config)                  config $@;;
+    standalone)              failover STANDALONE;;
+    enable)                  enable $2;;
+    disable)                 disable $2;;
+    brain)                   solve_split_brain;;
+    show)                    show_status;;
+    switch-master-slave)     switch;;
+    setup)                   setup $@;;
     version|-v|--version)    version;;
-
-    *)          usage;;
+    help|usage|-h|--help)    usage;;
+    *)                       usage;;
 
 esac
