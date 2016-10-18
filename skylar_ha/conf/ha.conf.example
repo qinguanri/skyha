@@ -1,0 +1,8 @@
+master_ip=192.168.75.129
+slave_ip=192.168.75.133
+vip_master=192.168.75.140
+data_dir=/data
+master_hostname=db1
+slave_hostname=db2
+drbd_size=500
+losetup_dev=/dev/loop9
