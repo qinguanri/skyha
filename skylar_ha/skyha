@@ -567,7 +567,7 @@ install_all() {
         return 1
     fi
 
-    ssh root@$slave_ip "$INSTALL_DIR/$PROC_NAME/skyha setup ${args[@]}"
+    ssh root@$slave_ip "$INSTALL_DIR/$PROC_NAME/skyha setup ${arguments[@]}"
     if [ $? -ne 0 ]; then
         echo "ERROR. Install at slave failed."
         return 1
