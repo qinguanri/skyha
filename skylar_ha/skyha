@@ -614,7 +614,7 @@ disable() {
 }
 
 boot() {
-    losetup $losetup_dev /data/drbd.img
+    losetup $losetup_dev $data_dir/drbd.img
     systemctl start docker.service
     systemctl start pacemaker.service
     pcs cluster unstandby
