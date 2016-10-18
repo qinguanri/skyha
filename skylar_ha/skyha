@@ -258,9 +258,10 @@ failover() {
 # get args from input, and output args into ha.conf
 #
 args_parse() {
-    arguments="$@"
-
-    echo "$arguments" | xargs -n 1 > $WORK_DIR/conf/ha.conf
+    if [ ! -f $WORK_DIR/conf/ha.conf ]; then
+        arguments="$@"
+        echo "$arguments" | xargs -n 1 > $WORK_DIR/conf/ha.conf
+    fi
 
     source $WORK_DIR/conf/ha.conf
 
@@ -588,6 +589,7 @@ install_all() {
 }
 
 config() {
+    rm -f $WORK_DIR/conf/ha.conf
     arguments=($@)
     unset arguments[0]
     args_parse ${arguments[@]}
