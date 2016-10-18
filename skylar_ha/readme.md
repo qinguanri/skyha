@@ -69,9 +69,16 @@
 1. 在master主机上执行安装命令。安装命令大约运行10分钟，请耐心等待。postgres登录密码：postgres。安装命令如下：
 
     ```
-    # /opt/skylar_ha/skyha install master_ip=192.168.142.171 slave_ip=192.168.142.172 vip_master=192.168.142.191 data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000
+    # /opt/skylar_ha/skyha install \                 
+         master_ip=192.168.142.171 \       
+         slave_ip=192.168.142.172 \
+         vip_master=192.168.142.191 \
+         data_dir=/data \
+         master_hostname=db1 \ 
+         slave_hostname=db2 \
+         drbd_size=1000 
     ```
-
+    
     必填参数说明：
     * master_ip，master主机的IP；
     * slave_ip，slave主机的IP；
