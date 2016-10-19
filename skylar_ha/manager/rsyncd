@@ -12,8 +12,6 @@
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 RSYNCD_PORTS=("873/tcp")
 
-###############################################################################
-
 prepare() {
     if [ ! -n "$data_dir" ]; then
         echo "ERROR. var data_dir is null"
@@ -22,7 +20,6 @@ prepare() {
 }
 
 install_rsyncd() {
-    echo "Install rsyncd ..."
     $WORK_DIR/include/common check_install rsync
     if [ $? -ne 0 ]; then
         yum install -y --disablerepo=\* --enablerepo=Pacemaker rsync; sleep 2
@@ -83,13 +80,10 @@ source $WORK_DIR/conf/ha.conf
 case "$1" in
     prepare)    prepare
                 exit $?;;
-
     install)    install_rsyncd
                 exit $?;;
-
     clean)      clean
                 exit $?;;
-
     *)          $@
                 exit $?;;
 esac

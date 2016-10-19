@@ -10,31 +10,18 @@
 ###############################################################################
 # Global
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
-source $WORK_DIR/conf/ha.conf
+
 
 PG_VER_DEF=9.5
-
 PG_DIR_BIN="/usr/lib/postgresql/$PG_VER_DEF/bin"
 PG_DIR_DATA="/var/lib/postgresql/$PG_VER_DEF/main"
-
 PG_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_pg*"`
 PG_IMAGE_NAME="skylar_pg"
 PG_CONTAINER="pg"
-
 PG_USER="postgres"
-
 PG_BAK="$data_dir/pg_backup"
 pg_dir="/drbd/pg"
 PG_PORT="5432/tcp"
-
-###############################################################################
-
-
-my_ip="$master_ip"
-hostname -I | grep "$slave_ip"
-if [ $? -eq 0 ]; then
-    my_ip="$slave_ip"
-fi
 
 prepare() {
     # check parament
@@ -73,14 +60,12 @@ check_pg_run() {
         if [ $? -eq 0 ]; then
             return 0
         fi
-        echo "Postgresql service starting ..."
         let "test_count++"
     done
     return 1
 }
 
 recover() {
-    echo "recover pg ..."
     systemctl status docker.service
     if [ $? -ne 0 ]; then
         systemctl start docker.service
@@ -141,7 +126,6 @@ backup_data() {
 }
 
 clean() {
-    echo "Stop container $PG_CONTAINER ..."
     if docker ps | grep $PG_CONTAINER; then
         docker stop $PG_CONTAINER
         docker rm $PG_CONTAINER
@@ -165,9 +149,7 @@ failover() {
         op stop timeout="60s" interval="0s" on-fail="block"
 }
 
-# todo
 check_status() {
-    echo "Check pg status ..."
     crm_mon -Afr -1 | grep postgres | grep Started
     if [ $? -eq 0 ]; then
         echo "OK. PG is started."
@@ -179,26 +161,25 @@ check_status() {
 }
 
 source $WORK_DIR/conf/ha.conf
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
 
 case "$1" in
     prepare)    prepare
                 exit $?;;
-
     install)    install_pg
                 exit $?;;
-
     failover)   failover
                 exit $?;;
-
     recover)    recover $2
                 exit $?;;
-
     status)     check_status
                 exit $?;;
-
     clean)      clean
                 exit $?;;
-
     *)          $@
                 exit $?;;
 esac

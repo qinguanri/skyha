@@ -10,33 +10,16 @@
 ###############################################################################
 # Global
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
-
-. $WORK_DIR/conf/ha.conf
-
 REDIS_CLI_CMD="docker exec -i redis /usr/bin/redis-cli" 
-
-# Redis
 REDIS_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_redis*"`
 REDIS_IMAGE_NAME="skylar_redis"
 REDIS_CONTAINER="redis"
 REDIS_PORT="6379"
-
 redis_dir="/drbd/redis"
 
-###############################################################################
-
-source $WORK_DIR/conf/ha.conf
-
-my_ip="$master_ip"
-hostname -I | grep "$slave_ip"
-if [ $? -eq 0 ]; then
-    my_ip="$slave_ip"
-fi
-
-###############################################################################
 
 prepare() {
-    docker images | grep "$REDIS_IMAGE_NAME"
+    docker images | grep "$REDIS_IMAGE_NAME" >>/dev/null
     if [ $? -ne 0 ]; then
         echo "docker load < $REDIS_IMAGE_FILE. Please wait minutes..."
         docker load < "$REDIS_IMAGE_FILE"
@@ -54,8 +37,6 @@ install_redis() {
 }
 
 is_redis_run() {
-    echo "Check redis running ..."
-
     docker ps | grep $REDIS_CONTAINER
     if [ $? -ne 0 ]; then
         echo "Redis container is not running."
@@ -88,8 +69,7 @@ failover() {
 }
 
 check_ha_status() {
-    echo "Check redis status ..."
-    crm_mon -Afr -1 | grep redis | grep Started
+    crm_mon -Afr -1 | grep redis | grep Started >>/dev/null
     if [ $? -eq 0 ]; then
         echo "OK. Redis is started."
         return 0
@@ -100,23 +80,19 @@ check_ha_status() {
 }
 
 recover() {
-    echo "recover redis ..."
-    systemctl status docker.service
-    if [ $? -ne 0 ]; then
+    if ! systemctl status docker.service; then
         systemctl start docker.service
         sleep 2
     fi
 
     backup_data
 
-    systemctl status pacemaker.service
-    if [ $? -ne 0 ]; then
+    if ! systemctl status pacemaker.service; then
         systemctl start pacemaker.service
         sleep 2
     fi
 
-    NODENAME=$HOSTNAME
-    pcs cluster unstandby $NODENAME
+    pcs cluster unstandby
 }
 
 backup_data() {
@@ -165,26 +141,25 @@ clean() {
 }
 
 source $WORK_DIR/conf/ha.conf
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
 
 case "$1" in
     prepare)    prepare
                 exit $?;;
-
     install)    install_redis
                 exit $?;;
-
     failover)   failover
                 exit $?;;
-
     recover)    recover
                 exit $?;;
-
     status)     check_ha_status
                 exit $?;;
-
     clean)      clean
                 exit $?;;
-
     *)          $@
                 exit $?;;
 esac

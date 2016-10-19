@@ -10,15 +10,7 @@
 ###############################################################################
 # Global:
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
-
-source $WORK_DIR/conf/ha.conf
 DRBD_RPM_TAR="yum_drbd.tar"
-
-my_ip="$master_ip"
-hostname -I | grep "$slave_ip"
-if [ $? -eq 0 ]; then
-    my_ip="$slave_ip"
-fi
 
 prepare() {
     if [ "$my_ip" == "$master_ip" ]; then
@@ -288,6 +280,13 @@ uninstall() {
     yum remove -y kmod-drbd84
     yum remove -y drbd84-utils
 }
+
+source $WORK_DIR/conf/ha.conf
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
 
 case "$1" in
     prepare)    prepare

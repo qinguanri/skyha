@@ -11,21 +11,12 @@
 # Global:
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 
-source $WORK_DIR/conf/ha.conf
-
-my_ip="$master_ip"
-hostname -I | grep "$slave_ip"
-if [ $? -eq 0 ]; then
-    my_ip="$slave_ip"
-fi
 
 prepare() {
     systemctl stop nfs-server.service
 }
 
 install() {
-    echo "installing nfs-server, please wait a minute ..."
-
     cd $WORK_DIR/dependent
 
     $WORK_DIR/include/common check_install nfs-utils rpcbind
@@ -33,11 +24,9 @@ install() {
         yum install -y --disablerepo=\* --enablerepo=Nfs nfs-utils rpcbind; sleep 1
     fi
 
-    #systemctl enable rpcbind.service
     systemctl start rpcbind.service
 
     echo "" > /etc/exports
-    #systemctl enable nfs-server.service
     systemctl start nfs-server.service
     
     if [ $? -ne 0 ]; then
@@ -56,7 +45,6 @@ recover() {
 }
 
 check_status() {
-    echo "check nfs-server status ..."
     crm_mon -Afr -1 | grep 'nfs-root' | grep Started
     if [ $? -eq 0 ]; then
         echo "OK. NFS is running correctly."
@@ -71,23 +59,25 @@ clean() {
     return 0
 }
 
+source $WORK_DIR/conf/ha.conf
+
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
+
 case "$1" in
     prepare)    prepare
                 exit $?;;
-
     install)    install
                 exit $?;;
-
     failover)   failover
                 exit $?;;
-
     recover)    recover;;
-
     clean)      clean
                 exit $?;;
-
     status)     check_status;;
-
     *)          $@
                 exit $?;;
 esac

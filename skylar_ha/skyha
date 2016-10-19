@@ -10,7 +10,6 @@ WORK_DIR=$(cd `dirname $0`; pwd)
 INSTALL_DIR=$(cd $WORK_DIR; cd ../; pwd)
 PROC_NAME="skylar_ha"
 PROC_FILE="$PROC_NAME.tar.gz"
-
 RECOVERY_LOG="/var/log/skyha_recovery.log"
 losetup_dev_default=/dev/loop9
 
@@ -56,7 +55,6 @@ prepare() {
 
     mkdir -p $INSTALL_DIR
 
-    echo "kill other yum process."
     kill -9 $(ps -ef | grep 'yum' | awk {'print $2'})
 
     chmod +x $WORK_DIR/manager/* $WORK_DIR/resource/* $WORK_DIR/include/* $WORK_DIR/skyha
@@ -74,14 +72,12 @@ prepare() {
         fi
     done
 
-    # restart iptables.service to update configuration
     systemctl restart iptables.service
 }
 
 
 # invoke every manager's and resource's install functions. install manager at first, then install resource
 install() {
-    echo "kill other yum process."
     kill -9 $(ps -ef | grep 'yum' | awk {'print $2'})
     for file in $WORK_DIR/manager/* $WORK_DIR/resource/*
     do
@@ -108,7 +104,6 @@ failover() {
         fi
     fi
 
-    echo "stop pacemaker ...."
     pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
     if [ $pacemaker_proc -gt 0 ]; then
         kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
@@ -142,7 +137,6 @@ failover() {
         return 1
     fi
 
-    echo "start pacemaker ...."
     systemctl start pacemaker.service
     try_count=1
     MAX_TRY=60
@@ -335,7 +329,6 @@ recover() {
 }
 
 check_ha_status() {
-    echo "Check HA status ..."
     TRY=1 
     while [ $TRY -lt 60 ]
     do
@@ -456,11 +449,6 @@ recover_slave() {
 
 # check args and install just for one host.
 run() {
-    if [ $? -ne 0 ]; then
-        echo "ERROR. args parse failed."
-        exit 1
-    fi
-
     echo "(1) ******* Prepare environment ..."
     if ! prepare; then
         echo "ERROR. Prepare environment failed."

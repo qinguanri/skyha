@@ -12,8 +12,6 @@
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 PCMK_PORTS=("22/tcp" "2224/tcp" "3121/tcp" "21064/tcp" "873/tcp" "5404/udp" "5405/udp")
 
-###############################################################################
-
 
 prepare() {
     source $WORK_DIR/conf/ha.conf
@@ -95,13 +93,10 @@ source $WORK_DIR/conf/ha.conf
 case "$1" in
     prepare)    prepare
                 exit $?;;
-
     install)    install_pacemaker
                 exit $?;;
-
     clean)      clean
                 exit $?;;
-
     *)          $@
                 exit $?;;
 esac

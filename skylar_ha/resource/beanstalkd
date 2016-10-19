@@ -11,14 +11,13 @@
 # Global
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 
-# Beanstalkd
 BSTKD_IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_beanstalkd*"`
 BSTKD_IMAGE_NAME="skylar_beanstalkd"
 BSTKD_CONTAINER="beanstalkd"
 BSTKD_PORT="11300"
 
 . $WORK_DIR/conf/ha.conf
-###############################################################################
+
 
 my_ip="$master_ip"
 hostname -I | grep "$slave_ip"
@@ -44,9 +43,7 @@ install_bstkd() {
 }
 
 is_bstkd_run() {
-    echo "Check beanstalkd running ..."
-
-    docker ps | grep $BSTKD_CONTAINER
+    docker ps | grep $BSTKD_CONTAINER >>/dev/null
     if [ $? -ne 0 ]; then
         echo "Beanstalkd container is not running."
         return 1
@@ -80,8 +77,7 @@ failover() {
 }
 
 check_ha_status() {
-    echo "Check Beanstalkd status ..."
-    crm_mon -Afr -1 | grep bstkd | grep Started
+    crm_mon -Afr -1 | grep bstkd | grep Started >>/dev/null
     if [ $? -eq 0 ]; then
         echo "OK. Beanstalkd is started."
         return 0
@@ -92,20 +88,16 @@ check_ha_status() {
 }
 
 recover() {
-    echo "recover beanstalkd..."
-    systemctl status docker.service
-    if [ $? -ne 0 ]; then
+    if ! systemctl status docker.service; then
         systemctl start docker.service
     fi
 
-    systemctl status pacemaker.service
-    if [ $? -ne 0 ]; then
+    if ! systemctl status pacemaker.service; then
         systemctl start pacemaker.service
         sleep 5
     fi
 
-    NODENAME=$HOSTNAME
-    pcs cluster unstandby $NODENAME
+    pcs cluster unstandby
 }
 
 
@@ -118,22 +110,16 @@ source $WORK_DIR/conf/ha.conf
 case "$1" in
     prepare)    prepare
                 exit $?;;
-
     install)    install_bstkd
                 exit $?;;
-
     failover)   failover
                 exit $?;;
-
     recover)    recover $2
                 exit $?;;
-
     status)     check_ha_status
                 exit $?;;
-
     clean)      clean
                 exit $?;;
-
     *)          $@
                 exit $?;;
 esac

@@ -1,4 +1,4 @@
-#!/bin/sh
+ar#!/bin/sh
 #
 # Description: 
 #
@@ -12,23 +12,15 @@
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 PCMK_RPM_TAR="yum_pacemaker.tar"
 IPTABLES_RPM_TAR="yum_iptables.tar"
-
-#TODO
 DRBD_RPM_TAR="yum_drbd.tar"
-
 NFS_RPM_TAR="yum_nfs.tar"
 
-REDIS_CLI_CMD="docker exec -i redis /usr/bin/redis-cli" 
-
 losetup_dev_default=/dev/loop9
-
-###############################################################################
 
 
 check_ip_valid() {
     echo $1|grep "^[0-9]\{1,3\}\.\([0-9]\{1,3\}\.\)\{2\}[0-9]\{1,3\}$" > /dev/null; 
-    if [ $? -ne 0 ] 
-    then 
+    if [ $? -ne 0 ]; then 
         return 1 
     fi
     ipaddr=$1 
@@ -38,8 +30,7 @@ check_ip_valid() {
     d=`echo $ipaddr|awk -F . '{print $4}'` 
     for num in $a $b $c $d 
     do
-        if [ $num -gt 255 ] || [ $num -lt 0 ]    #每个数值必须在0-255之间 
-        then 
+        if [ $num -gt 255 ] || [ $num -lt 0 ]; then 
             return 1 
         fi 
     done
@@ -47,9 +38,7 @@ check_ip_valid() {
 }
 
 check_repo() {
-    echo "Check repo whether is exist..."
     repo_list=$@
-
     for item in ${repo_list[@]}
     do
         ls -lh /etc/yum.repos.d/"$item"
@@ -67,10 +56,9 @@ create_repo() {
         return 0
     fi
 
-    ###############################################################################
     # create repo for pacemaker
     if [ ! -f $WORK_DIR/dependent/$PCMK_RPM_TAR ]; then
-        echo "ERROR. can not find file:$WORK_DIR/dependent/$PCMK_RPM_TAR"
+        echo "ERROR. No such file or directory:$WORK_DIR/dependent/$PCMK_RPM_TAR"
         return 1
     fi
     cp $WORK_DIR/dependent/$PCMK_RPM_TAR /
@@ -90,10 +78,9 @@ enabled=1" > /etc/yum.repos.d/CentOS-Pacemaker.repo
         return 1
     fi
 
-    ###############################################################################
     # create repo for iptables
     if [ ! -f $WORK_DIR/dependent/$IPTABLES_RPM_TAR ]; then
-        echo "ERROR. can not find file:$WORK_DIR/dependent/$IPTABLES_RPM_TAR"
+        echo "ERROR. No such file or directory:$WORK_DIR/dependent/$IPTABLES_RPM_TAR"
         return 1
     fi
     cp $WORK_DIR/dependent/$IPTABLES_RPM_TAR /
@@ -109,10 +96,9 @@ gpgcheck=0
 enabled=1" > /etc/yum.repos.d/CentOS-Iptables.repo
     
 
-    ###############################################################################
     # create repo for drbd
     if [ ! -f $WORK_DIR/dependent/$DRBD_RPM_TAR ]; then
-        echo "ERROR. can not find file:$WORK_DIR/dependent/$DRBD_RPM_TAR"
+        echo "ERROR. No such file or directory:$WORK_DIR/dependent/$DRBD_RPM_TAR"
         return 1
     fi
     cp $WORK_DIR/dependent/$DRBD_RPM_TAR /
@@ -126,11 +112,9 @@ baseurl=file:///yum_drbd/
 gpgcheck=0
 enabled=1" > /etc/yum.repos.d/CentOS-Drbd.repo
 
-
-    ###############################################################################
     # create repo for nfs
     if [ ! -f $WORK_DIR/dependent/$NFS_RPM_TAR ]; then
-        echo "ERROR. can not find file:$WORK_DIR/dependent/$NFS_RPM_TAR"
+        echo "ERROR. No such file or directory:$WORK_DIR/dependent/$NFS_RPM_TAR"
         return 1
     fi
     cp $WORK_DIR/dependent/$NFS_RPM_TAR /
@@ -147,10 +131,6 @@ enabled=1" > /etc/yum.repos.d/CentOS-Nfs.repo
     return 0
 }
 
-###############################################################################
-
-#arg_arr=("master_ip" "slave_ip" "vip_master" "pg_dir" "redis_dir" \
-#    "master_hostname" "slave_hostname")
 
 check_args_valid() {
     source $WORK_DIR/conf/ha.conf
@@ -197,9 +177,7 @@ check_args_valid() {
 }
 
 check_install() {
-    echo "Check install, soft list:$@ "
     soft_list=$@
-
     for item in ${soft_list[@]}
     do
         installed=`yum list installed | grep "$item" |grep -v grep | wc -l`
@@ -211,7 +189,5 @@ check_install() {
     return 0
 }
 
-#
 # execute function
-#
 $@

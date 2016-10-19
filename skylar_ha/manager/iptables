@@ -17,14 +17,14 @@ udp_ports_default=("5404" "5405" "111" "892")
 : ${tcp_ports=${tcp_ports_default[@]}}
 : ${udp_ports=${udp_ports_default[@]}}
 
-###############################################################################
 IPTABLES_RPM_TAR="yum_iptables.tar"
+
 
 prepare() {
     source $WORK_DIR/conf/ha.conf
 
     if [ ! -f $WORK_DIR/dependent/$IPTABLES_RPM_TAR ]; then
-        echo "ERROR. Can not find file: $WORK_DIR/dependent/$IPTABLES_RPM_TAR"
+        echo "ERROR. No such file or directory: $WORK_DIR/dependent/$IPTABLES_RPM_TAR"
         return 1
     fi
 
@@ -38,10 +38,9 @@ prepare() {
 
 
 install() {
-    echo "installing iptables services, please wait a minute ..."
     $WORK_DIR/include/common check_install iptables-services
     if [ $? -ne 0 ]; then 
-        yum install -y --disablerepo=\* --enablerepo=Iptables iptables-services; sleep 2
+        yum install -y --disablerepo=\* --enablerepo=Iptables iptables-services; sleep 1
     fi
 
     setenforce 0
@@ -52,7 +51,6 @@ install() {
     systemctl disable firewalld.service
 
     iptables -L -n
-    
     iptables -A INPUT -i lo -j ACCEPT
 
     # if not exist rules, insert it
@@ -92,7 +90,6 @@ disable_dhcp() {
         ## TODO: 如果IP是DHCP获取的。直接返回报错，提示修改为静态IP。不在这脚本中进行调整dhcp。
         #return 1
 
-        ## 如果想在这个脚本中自动调整为static，可以将上面的return 1注释掉即可。下面是自动调整为static的逻辑。
         cp $network_file /etc/sysconfig/backup_network-scripts_$device
         sed -i 's/dhcp/static/g' $network_file
         my_ip=$master_ip
@@ -141,13 +138,10 @@ source $WORK_DIR/conf/ha.conf
 case "$1" in
     prepare)    prepare
                 exit $?;;
-
     install)    install
                 exit $?;;
-
     clean)      clean
                 exit $?;;
-
     *)          $@
                 exit $?;;
 esac
