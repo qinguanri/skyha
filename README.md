@@ -3,6 +3,7 @@
 ![Version Status](https://img.shields.io/badge/release-v1.0.0-orange.svg)
 [![License](https://img.shields.io/badge/LICENSE-Apache2.0-ff69b4.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
 
+```
  +------------------+        +--------------------+
  |                  |        |                    |
  |  +------------+  |        |   +-------------+  |
@@ -23,7 +24,7 @@
  +------------------+        +--------------------+
 
    Pacemaker HOST 1             Pacemaker HOST 2
-
+```
 
 # PG+Redis+Beanstalkd高可用部署
 
