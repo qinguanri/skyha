@@ -216,14 +216,24 @@ remove_container()
 	ocf_run docker rm $CONTAINER
 }
 
-docker_simple_status()
+docker_service_status()
 {
-	local val
+	systemctl status docker.service
+	if [ $? -ne 0 ]; then
+		return $OCF_NOT_RUNNING
+	fi
 
 	container_exists
 	if [ $? -ne 0 ]; then
 		return $OCF_NOT_RUNNING
 	fi
+
+	return $OCF_SUCCESS
+}
+
+docker_simple_status()
+{
+	local val
 
 	# retrieve the 'Running' attribute for the container
 	val=$(docker inspect --format {{.State.Running}} $CONTAINER 2>/dev/null)
@@ -243,6 +253,15 @@ docker_simple_status()
 docker_monitor()
 {
 	local rc=0
+
+	docker_service_status
+	rc=$?
+
+	if [ $rc -ne 0 ]; then
+		pcs cluster standby
+		return $rc
+	fi
+
 	docker_simple_status
 	rc=$?
 
