@@ -31,6 +31,7 @@ prepare() {
         echo "docker load < $BSTKD_IMAGE_FILE. Please wait minutes..."
         docker load < "$BSTKD_IMAGE_FILE"
     fi
+    return 0
 }
 
 install_bstkd() {

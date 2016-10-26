@@ -31,6 +31,7 @@ prepare() {
         echo "ERROR. There is not enough space for drbd at $my_ip."
         return 1
     fi
+    return 0
 }
 
 install() {
@@ -87,6 +88,7 @@ install() {
     drbdadm create-md skydata
     modprobe drbd
     drbdadm up skydata
+    return 0
 }
 
 set_master() {

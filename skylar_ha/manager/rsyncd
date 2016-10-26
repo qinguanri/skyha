@@ -17,6 +17,7 @@ prepare() {
         echo "ERROR. var data_dir is null"
         return 1
     fi
+    return 0
 }
 
 install_rsyncd() {

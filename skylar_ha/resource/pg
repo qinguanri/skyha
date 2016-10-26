@@ -38,6 +38,7 @@ prepare() {
         echo "docker load < $PG_IMAGE_FILE. Please wait minutes..."
         docker load < "$PG_IMAGE_FILE"
     fi
+    return 0
 }
 
 install_pg() {

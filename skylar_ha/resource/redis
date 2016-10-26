@@ -25,6 +25,7 @@ prepare() {
         docker load < "$REDIS_IMAGE_FILE"
         sleep 1
     fi
+    return 0
 }
 
 install_redis() {

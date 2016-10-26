@@ -14,6 +14,7 @@ WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 
 prepare() {
     systemctl stop nfs-server.service
+    return 0
 }
 
 install() {
@@ -33,6 +34,7 @@ install() {
         echo "ERROR. systemctl start nfs-server.service failed."
         return 1
     fi
+    return 0
 }
 
 failover() {

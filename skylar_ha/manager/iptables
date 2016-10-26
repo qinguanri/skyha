@@ -73,6 +73,7 @@ install() {
     service iptables save
     systemctl enable iptables.service
     systemctl restart iptables.service
+    return 0
 }
 
 

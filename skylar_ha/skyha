@@ -73,6 +73,7 @@ prepare() {
     done
 
     systemctl restart iptables.service
+    return 0
 }
 
 
@@ -89,6 +90,7 @@ install() {
             fi
         fi
     done
+    return 0
 }
 
 
