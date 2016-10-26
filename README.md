@@ -200,18 +200,17 @@ Migration Summary:
 ## 三、故障切换测试
 -----------
 
-1.  模拟redis master主机异常，检验IP漂移、自动切换效果：
-
-    在master主机上停止redis容器：
+1.  模拟docker daemon进程异常，检验IP漂移、自动切换效果：
 
     ```
-    # docker stop redis
+    # systemctl stop docker.service
     ```
 
-2. (完成自动切换大约需要30秒）检查是否自动切换主备，检查redis是否正常提供服务：
+2. (完成自动切换大约需要30秒）查看组件运行状态，检查虚IP是否ping通、redis等基础组件是否正常提供服务：
 
     ~~~
     #  /opt/skylar_ha/skyha show
+    # ping 192.168.142.191
     ~~~
 
 ## 四、故障修复
