@@ -24,6 +24,8 @@ prepare() {
     drbdadm secondary all
     drbdadm down skydata
     losetup -d $losetup_dev
+    used_dev=`losetup -a | grep 'drbd.img' | awk -F ':' {'print $1'}`
+    losetup -d $used_dev
 
     free_size=`df $data_dir | grep '/' | awk {'print $4'}`
     let free_size=$free_size/1000
@@ -185,7 +187,7 @@ losetup_img() {
     try=0
     while [ $try -le 5 ]
     do
-        losetup -a | grep 'drbd.img'
+        losetup -a | grep 'drbd.img' | grep $losetup_dev
         if [ $? -ne 0 ]; then
             losetup $losetup_dev $data_dir/drbd.img
         else
