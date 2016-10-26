@@ -120,11 +120,11 @@
     * losetup_dev, drbd挂载的设备，取值范围一般为/dev/loop2 ~ /dev/loop99之间空闲的设备。 ``` losetup -a ``` 命令查看已占用的设备。默认为/dev/loop9
 
 
-2. 在master和slave两台主机上，修改pg_hba.conf文件。在pg_hba.conf文件末尾 添加控制台IP（这里假设是192.168.142.140，请按实际情况修改ip）。pg_hba.conf文件路径为：$data_dir/pg/pg_hba.conf。访问pg的权限：
+2. 在master主机上，修改pg_hba.conf文件。在pg_hba.conf文件末尾 添加控制台IP（这里假设是192.168.142.140，请按实际情况修改ip）。pg_hba.conf文件路径为：/drbd/pg/pg_hba.conf。访问pg的权限：
 
     ```
-    # echo "host     all             all             192.168.142.140/32             trust" >> /data/pg/pg_hba.conf
-    # cat /data/pg/pg_hba.conf          （打印pg_hba.conf文件， 检查修改是否正确）
+    # echo "host     all             all             192.168.142.140/32             trust" >> /drbd/pg/pg_hba.conf
+    # cat /drbd/pg/pg_hba.conf          （打印pg_hba.conf文件， 检查修改是否正确）
     ```
 
 ## 二、检验安装结果
