@@ -606,7 +606,7 @@ show_status() {
     fi
 
     my_ip="$master_ip"
-    hostname -I | grep "$slave_ip"
+    hostname -I | grep "$slave_ip" >>/dev/null
     if [ $? -eq 0 ]; then
         my_ip="$slave_ip"
     fi
@@ -634,7 +634,7 @@ show_status() {
         fi
 
         slave_data_dir_info=`du -sh $data_dir/*`
-        slave_drbd_dir_info=`du -sh $data_dir/*`
+        slave_drbd_dir_info=`du -sh /drbd/*`
     fi
 
     echo "
