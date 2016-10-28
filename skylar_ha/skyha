@@ -660,6 +660,65 @@ NFS Info:
     fi
 }
 
+show_status_as_xml() {
+    base_info=`get_base_info`
+    space_info=`get_space_info`
+    nfs_info=`get_nfs_info`
+    crm_mon_result=`get_crm_mon_result`
+
+    status_xml="
+<?xml version=\"1.0\"?>
+<HAStatus>
+    <BaseInfo>
+        $base_info
+    </BaseInfo>
+    <SpaceInfo>
+        $space_info
+    </SpaceInfo>
+    <NFSInfo>
+        $nfs_info
+    </NFSInfo>
+    <PacemakerInfo>
+        $crm_mon_result
+    </PacemakerInfo>
+</HAStatus>
+    "
+    echo $status_xml
+}
+
+get_base_info() {
+    echo "
+<node name=\"vip\" ip=\"$vip_master\"/>
+<node name=\"$master_hostname\" ip=\"$master_ip\"/>
+<node name=\"$slave_hostname\" ip=\"$slave_ip\"/>
+"
+}
+
+get_space_info() {
+    echo "
+<node name=\"$master_hostname\">
+    <space dir=\"/data/drbd.img\" size=\"212M\" />
+    <space dir=\"/drbd/pg\" size=\"20K\" />
+</node>
+
+<node name=\"$slave_hostname\">
+    <space dir=\"/data/drbd.img\" size=\"212M\" />
+    <space dir=\"/drbd/pg\" size=\"20K\" />
+</node>
+"
+}
+
+get_nfs_info() {
+    echo "
+<nfs ip=\"$vip_master\" nfssharedir=\"/drbd/nfssharedir/exports *\"/>
+"
+}
+
+get_crm_mon_result() {
+    result=`crm_mon -X -Afr -1`
+    echo $result
+}
+
 switch() {
     ip addr | grep $vip_master
     if [ $? -ne 0 ]; then
@@ -728,6 +787,7 @@ case "$1" in
     disable)                 disable $2;;
     brain)                   solve_split_brain;;
     show)                    show_status;;
+    show_xml)                show_status_as_xml;;
     switch-master-slave)     switch;;
     setup)                   setup $@;;
     version|-v|--version)    version;;
