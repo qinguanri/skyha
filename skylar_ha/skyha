@@ -745,16 +745,29 @@ get_nfs_info() {
 get_crm_mon_result() {
     crm_mon -X -Afr -1 > /var/log/.tempfile
     if [ $? -ne 0 ]; then
-        echo "<crm_mon status=\"pacemaker_is_running_error_at_this_host\" >"
-        rm -f /var/log/.tempfile
-        return 1
+        peer_ip=`get_peer_ip`
+        ssh root@$peer_ip "crm_mon -X -Afr -1" > /var/log/.tempfile
+        if [ $? -ne 0 ]; then
+            echo "<base is_run=\"false\" >"
+            rm -f /var/log/.tempfile
+            return 1
+        fi
     fi
 
     sed -i '1d' /var/log/.tempfile
+    echo "<base is_run=\"true\">" >> /var/log/.tempfile
     cat /var/log/.tempfile
     rm -f /var/log/.tempfile
 }
 
+get_peer_ip() {
+    peer_ip=$master_ip
+    ip addr | grep $master_ip >>/dev/null
+    if [ $? -eq 0 ]; then
+        peer_ip=$slave_ip
+    fi
+    echo $peer_ip
+}
 switch() {
     ip addr | grep $vip_master
     if [ $? -ne 0 ]; then
