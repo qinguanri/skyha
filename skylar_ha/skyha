@@ -695,28 +695,64 @@ get_base_info() {
 }
 
 get_space_info() {
-    echo "
-<node name=\"$master_hostname\">
-    <space dir=\"/data/drbd.img\" size=\"212M\" />
-    <space dir=\"/drbd/pg\" size=\"20K\" />
-</node>
+    show_status > /var/log/.temp_show_status
+    sed -n '/Space Info/,/NFS Info/p' /var/log/.temp_show_status > /var/log/.temp_space_info
+    sed -i '/Space/d' /var/log/.temp_space_info
+    sed -i '/NFS/d' /var/log/.temp_space_info
+    sed -n '1,/Node/p' /var/log/.temp_space_info > /var/log/.temp_space_info_master
+    sed -i '/Node/d' /var/log/.temp_space_info_master
+    sed -n '/Node $slave_hostname/,//p' /var/log/.temp_space_info > /var/log/.temp_space_info_slave
+    sed -i '/Node/d' /var/log/.temp_space_info_slave
 
-<node name=\"$slave_hostname\">
-    <space dir=\"/data/drbd.img\" size=\"212M\" />
-    <space dir=\"/drbd/pg\" size=\"20K\" />
-</node>
-"
+    master_space_info=`get_master_space_info /var/log/.temp_space_info_master`
+    slave_space_info=`get_slave_space_info /var/log/.temp_space_info_slave`
+    
+    rm -f /var/log/.temp_*
+
+    echo "
+    <node name=\"$master_hostname\">
+        $master_space_info
+    </node>
+
+    <node name=\"$slave_hostname\">
+        $slave_space_info
+    </node>
+    "
+}
+
+master_space_info() {
+    f=$1
+    str=""
+    index=0
+    for item in `cat $f`
+    do
+        let "index=$index%2"
+        [ $index -eq 0 ] && used=$item
+        [ $index -eq 1 ] && dir=$item
+        [ $index -eq 1 ] && str="$str <space dir=\"$item\" used=\"$used\"/>"
+        let "index++"
+    done
+    echo $str
 }
 
 get_nfs_info() {
+    nfssharedir=`showmount -e $vip_master | tail -1`
     echo "
-<nfs ip=\"$vip_master\" nfssharedir=\"/drbd/nfssharedir/exports *\"/>
+<nfs ip=\"$vip_master\" nfssharedir=\"$nfssharedir\"/>
 "
 }
 
 get_crm_mon_result() {
-    result=`crm_mon -X -Afr -1`
-    echo $result
+    crm_mon -X -Afr -1 > /var/log/.tempfile
+    if [ $? -ne 0 ]; then
+        echo "<crm_mon status=\"pacemaker_is_running_error_at_this_host\" >"
+        rm -f /var/log/.tempfile
+        return 1
+    fi
+
+    sed -i '1d' /var/log/.tempfile
+    cat /var/log/.tempfile
+    rm -f /var/log/.tempfile
 }
 
 switch() {
