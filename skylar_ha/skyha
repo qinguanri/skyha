@@ -748,14 +748,14 @@ get_crm_mon_result() {
         peer_ip=`get_peer_ip`
         ssh root@$peer_ip "crm_mon -X -Afr -1" > /var/log/.tempfile
         if [ $? -ne 0 ]; then
-            echo "<base is_run=\"false\" >"
+            echo "<base is_run=\"false\" />"
             rm -f /var/log/.tempfile
             return 1
         fi
     fi
 
     sed -i '1d' /var/log/.tempfile
-    echo "<base is_run=\"true\">" >> /var/log/.tempfile
+    echo "<base is_run=\"true\"/>" >> /var/log/.tempfile
     cat /var/log/.tempfile
     rm -f /var/log/.tempfile
 }
