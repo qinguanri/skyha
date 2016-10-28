@@ -133,9 +133,8 @@
 1. 在master主机上执行如下命令，查看双机热备状态：
 
 ```
-    [root@db1 home]# /opt/skylar_ha/skyha show
-  [root@db1 skylar_ha]# ./skyha show
-
+[root@db1 home]# /opt/skylar_ha/skyha show
+  
 Base Info:
   * vip: 192.168.142.191
   * db1: 192.168.142.171
