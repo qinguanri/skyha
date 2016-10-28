@@ -701,7 +701,7 @@ get_space_info() {
     sed -i '/NFS/d' /var/log/.temp_space_info
     sed -n '1,/Node/p' /var/log/.temp_space_info > /var/log/.temp_space_info_master
     sed -i '/Node/d' /var/log/.temp_space_info_master
-    sed -n '/Node $slave_hostname/,//p' /var/log/.temp_space_info > /var/log/.temp_space_info_slave
+    sed -n "/Node $slave_hostname/,//p" /var/log/.temp_space_info > /var/log/.temp_space_info_slave
     sed -i '/Node/d' /var/log/.temp_space_info_slave
 
     master_space_info=`get_space_info_from_file /var/log/.temp_space_info_master`
