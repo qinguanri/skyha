@@ -704,8 +704,8 @@ get_space_info() {
     sed -n '/Node $slave_hostname/,//p' /var/log/.temp_space_info > /var/log/.temp_space_info_slave
     sed -i '/Node/d' /var/log/.temp_space_info_slave
 
-    master_space_info=`get_master_space_info /var/log/.temp_space_info_master`
-    slave_space_info=`get_slave_space_info /var/log/.temp_space_info_slave`
+    master_space_info=`get_space_info /var/log/.temp_space_info_master`
+    slave_space_info=`get_space_info /var/log/.temp_space_info_slave`
     
     rm -f /var/log/.temp_*
 
@@ -720,7 +720,7 @@ get_space_info() {
     "
 }
 
-master_space_info() {
+get_space_info() {
     f=$1
     str=""
     index=0
