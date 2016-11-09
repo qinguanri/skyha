@@ -1,7 +1,6 @@
-language: c
+language: bash
 
 compiler:
-    - clang
     - gcc
 
 script: ./skylar_ha/skyha -v
