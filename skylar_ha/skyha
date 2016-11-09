@@ -612,15 +612,15 @@ show_status() {
     fi
 
     if [ "$my_ip" == "$master_ip" ]; then
-        master_data_dir_info=`du -sh $data_dir/*`
-        master_drbd_dir_info=`du -sh /drbd/*`
+        master_data_dir_info=`du -sh $data_dir/* 2>/dev/null`
+        master_drbd_dir_info=`du -sh /drbd/* 2>/dev/null`
 
         res=`ping -c 1 "$slave_ip"`
         if [ "$?" -ne 0 ]; then
             echo "ERROR. Ping $slave_ip failed."
         else
-            slave_data_dir_info=`ssh root@$slave_ip "du -sh $data_dir/*"`
-            slave_drbd_dir_info=`ssh root@$slave_ip "du -sh /drbd/*"`
+            slave_data_dir_info=`ssh root@$slave_ip "du -sh $data_dir/* 2>/dev/null"`
+            slave_drbd_dir_info=`ssh root@$slave_ip "du -sh /drbd/* 2>/dev/null"`
         fi
     fi
 
@@ -629,12 +629,12 @@ show_status() {
         if [ "$?" -ne 0 ]; then
             echo "ERROR. Ping $master_ip failed."
         else
-            master_data_dir_info=`ssh root@$master_ip "du -sh $data_dir/*"`
-            master_drbd_dir_info=`ssh root@$master_ip "du -sh /drbd/*"`
+            master_data_dir_info=`ssh root@$master_ip "du -sh $data_dir/* 2>/dev/null"`
+            master_drbd_dir_info=`ssh root@$master_ip "du -sh /drbd/* 2>/dev/null"`
         fi
 
-        slave_data_dir_info=`du -sh $data_dir/*`
-        slave_drbd_dir_info=`du -sh /drbd/*`
+        slave_data_dir_info=`du -sh $data_dir/* 2>/dev/null`
+        slave_drbd_dir_info=`du -sh /drbd/* 2>/dev/null`
     fi
 
     echo "
