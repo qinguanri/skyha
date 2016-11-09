@@ -652,7 +652,7 @@ $slave_data_dir_info
 $slave_drbd_dir_info
 
 NFS Info:
-`showmount -e $vip_master`
+`showmount -e $vip_master 2>/dev/null`
 "
     crm_mon -Afr -1
     if [ $? -ne 0 ]; then
