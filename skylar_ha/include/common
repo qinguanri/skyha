@@ -163,7 +163,7 @@ check_args_valid() {
         echo "drbd_size=1000" >> $WORK_DIR/conf/ha.conf
     fi
 
-    if [ $drbd_size -lt 1 ] || [ $drbd_size -gt 500000 ]; then
+    if [ $drbd_size -lt 1 ] || [ $drbd_size -gt 1000000 ]; then
         echo "param drbd_size=$drbd_size is invalid."
         return 1
     fi
