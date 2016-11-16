@@ -112,7 +112,7 @@ backup_data() {
     timestamp=`date "+%Y%m%d%H%M%S"`
     filename="redis.$timestamp.tar"
     mkdir -p /drbd
-    losetup $losetup_dev $data_dir/data.img
+    losetup $losetup_dev $data_dir/drbd.img
     if [ $? -eq 0 ]; then
         mount /dev/drbd1 /drbd
         cp -rf /drbd/redis $data_dir/recover/redis/redis
