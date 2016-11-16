@@ -160,7 +160,7 @@ check_args_valid() {
     fi
 
     if [ ! -n "$drbd_size" ]; then
-        echo "drbd_size=1000" >> $WORK_DIR/conf/ha.conf
+        echo "drbd_size=2000" >> $WORK_DIR/conf/ha.conf
     fi
 
     if [ $drbd_size -lt 1 ] || [ $drbd_size -gt 1000000 ]; then
