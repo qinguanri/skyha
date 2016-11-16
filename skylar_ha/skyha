@@ -637,6 +637,12 @@ show_status() {
         slave_drbd_dir_info=`du -sh /drbd/* 2>/dev/null`
     fi
 
+    drbd_status="OK"
+    $WORK_DIR/resource/drbd check_data_sync
+    if [ $? -ne 0 ]; then
+        drbd_status="Problem"
+    fi
+    img_size=ls -lh | grep 'drbd.img' | awk {'print $5'}
     echo "
 Base Info:
   * vip: $vip_master
@@ -653,7 +659,15 @@ $slave_drbd_dir_info
 
 NFS Info:
 `showmount -e $vip_master 2>/dev/null`
+
+DRBD Sync Status:
+$drbd_status
+
+DRBD Image Info:
+* path: $data_dir/drbd.img
+* size: $img_size
 "
+
     crm_mon -Afr -1
     if [ $? -ne 0 ]; then
         echo "ERROR. Pacemaker may not start correctly."
