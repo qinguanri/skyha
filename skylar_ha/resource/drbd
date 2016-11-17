@@ -163,7 +163,7 @@ failover() {
 
     sleep 2
     echo "config skyfs ..."
-    pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs"
+    pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs" options="noatime,nodiratime,noexec"
 }
 
 recover() {
