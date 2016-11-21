@@ -43,7 +43,7 @@ install() {
     if [ $? -ne 0 ]; then
         yum install -y --disablerepo=\* --enablerepo=Drbd kmod-drbd84; sleep 2
         yum install -y --disablerepo=\* --enablerepo=Drbd drbd84-utils;
-    fi 
+    fi
 
     rm -f $data_dir/drbd.img
     echo "create virtual block device ... "
@@ -81,11 +81,11 @@ install() {
     disk {
         on-io-error detach;
     }
-    on db1 {
+    on $master_hostname {
         disk $losetup_dev;
         address $master_ip:7789;
     }
-    on db2 {
+    on $slave_hostname {
         disk $losetup_dev;
         address $slave_ip:7789;
     }
