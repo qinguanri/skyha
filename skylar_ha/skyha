@@ -642,6 +642,7 @@ show_status() {
     if [ $? -ne 0 ]; then
         drbd_status="Problem"
     fi
+    cd $data_dir
     img_size=`ls -lh | grep 'drbd.img' | awk {'print $5'}`
     echo "
 Base Info:
