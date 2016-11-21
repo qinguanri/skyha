@@ -17,7 +17,7 @@ udp_ports_default=("5404" "5405" "111" "875" "892" "2049" "32769")
 : ${tcp_ports=${tcp_ports_default[@]}}
 : ${udp_ports=${udp_ports_default[@]}}
 
-#Port Description
+# Port Description
 # Nfs: 111,875,892,2049,32769(udp),32803(tcp)
 # Postgres: 5432(tcp)
 # Redis: 6379(tcp)
