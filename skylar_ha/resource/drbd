@@ -37,13 +37,13 @@ prepare() {
 }
 
 install() {
-	echo "installing drbd, please wait a minute ..."
+    echo "installing drbd, please wait a minute ..."
 
     $WORK_DIR/include/common check_install kmod-drbd84 drbd84-utils
     if [ $? -ne 0 ]; then
         yum install -y --disablerepo=\* --enablerepo=Drbd kmod-drbd84; sleep 2
         yum install -y --disablerepo=\* --enablerepo=Drbd drbd84-utils;
-    fi
+    fi 
 
     rm -f $data_dir/drbd.img
     echo "create virtual block device ... "
@@ -60,26 +60,31 @@ install() {
     sed -i 's/usage-count yes/usage-count no/g' /etc/drbd.d/global_common.conf
     cat /etc/drbd.d/global_common.conf
 
+# optimize for 10GigaEthernet
+    
     echo "resource skydata {
     protocol C;
     meta-disk internal;
     device /dev/drbd1;
-    syncer {
+    net {
         verify-alg crc32;
         csums-alg crc32;
-        al-extents 3389;
-    }
-    net {
-        max-buffers 8000;
-        max-epoch-size 8000;
+        max-buffers 10000;
+        max-epoch-size 10000;
         sndbuf-size 0;
-        verify-alg crc32;
+        rcvbuf-size 0;
         after-sb-0pri discard-zero-changes;
         after-sb-1pri discard-secondary;
         after-sb-2pri disconnect;
     }
     disk {
+        al-extents 3389;
         on-io-error detach;
+        c-plan-ahead 15;
+        c-fill-target 2M;
+        c-min-rate 50M;
+        c-max-rate 720M;
+        resync-rate 720M;
     }
     on $master_hostname {
         disk $losetup_dev;
@@ -138,7 +143,8 @@ set_master() {
     mkdir -p /drbd/nfsshare
     mkdir -p /drbd/nfsshare/exports
     chmod 776 /drbd/nfsshare
-    chmod 776 /drbd/nfsshare/exports
+    chmod -R 776 /drbd/nfsshare/exports
+    chown -R nfsnobody:nfsnobody /drbd/nfsshare/exports
 
     mkdir -p /drbd/test
     touch /drbd/test/tmp
@@ -290,7 +296,7 @@ check_data_sync() {
 }
 
 clean() {
-	return 0
+    return 0
 }
 
 uninstall() {
