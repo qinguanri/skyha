@@ -41,7 +41,7 @@ failover() {
     pcs -f resource_cfg resource create nfs-daemon nfsserver \
            nfs_shared_infodir=/drbd/nfsshare/nfsinfo nfs_no_notify=true \
            lockd_udp_port=32769 lockd_tcp_port=32803 mountd_port=892 \
-           rquotad_port=875 nfsd_args="-G 10 -L 10"
+           rquotad_port=875 statd_port=662 nfsd_args="-G 10 -L 10"
 
     pcs -f resource_cfg resource create nfs-root exportfs \
            clientspec=* options=rw,sync,all_squash \

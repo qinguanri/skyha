@@ -12,13 +12,13 @@
 WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
 source $WORK_DIR/conf/ha.conf
 
-tcp_ports_default=("21" "22" "80" "443" "2224" "3121" "21064" "873" "11300" "5432" "6379" "7789" "111" "875" "892" "2049" "32803")
-udp_ports_default=("5404" "5405" "111" "875" "892" "2049" "32769")
+tcp_ports_default=("21" "22" "80" "443" "2224" "3121" "21064" "873" "11300" "5432" "6379" "7789" "111" "875" "892" "2049" "32803" "662")
+udp_ports_default=("5404" "5405" "111" "875" "892" "2049" "32769" "662")
 : ${tcp_ports=${tcp_ports_default[@]}}
 : ${udp_ports=${udp_ports_default[@]}}
 
 # Port Description
-# Nfs: 111,875,892,2049,32769(udp),32803(tcp)
+# Nfs: 111,875,892,2049,32769(udp),32803(tcp),662(statd_port)
 # Postgres: 5432(tcp)
 # Redis: 6379(tcp)
 # ssh: 21,22
