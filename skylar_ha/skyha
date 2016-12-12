@@ -42,6 +42,10 @@ prepare() {
         echo "ERROR. can not find file: $WORK_DIR/conf/ha.conf"
         return 1
     fi
+    
+    if systemctl status pacemaker; then
+        systemctl stop pacemaker
+    fi
 
     if ! systemctl status docker.service; then
         systemctl start docker.service
