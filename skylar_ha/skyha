@@ -200,7 +200,7 @@ failover() {
     done
 
     # HA组件分组:
-    pcs -f resource_cfg resource group add master-group skyfs vip-master postgres redis bstkd nfs-daemon nfs-root
+    pcs -f resource_cfg resource group add master-group skyfs vip-master postgres redis bstkd nfs-daemon nfs-root nfs-notify
 
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
