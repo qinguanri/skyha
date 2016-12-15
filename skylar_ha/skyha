@@ -811,11 +811,14 @@ switch() {
     pcs cluster standby $NODENAME
 
     try=1
-    while [ $try -lt 60 ]
+    while [ $try -lt 120 ]
     do
         crm_mon -Afr -1 | grep 'Stopped:' | grep $NODENAME >> /dev/null
         if [ $? -eq 0 ]; then
-            break
+            crm_mon -Afr -1 | grep 'nfs-root' | grep 'Start' >>/dev/null
+            if [ $? -eq 0 ]; then
+                break
+            fi
         fi
         sleep 1
         let "try++"
