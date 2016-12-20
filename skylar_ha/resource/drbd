@@ -19,6 +19,11 @@ prepare() {
         hostnamectl set-hostname "$slave_hostname"
     fi
 
+    cat /etc/hosts | grep "$vip_master"
+    if [ $? -ne 0 ]; then
+        echo "$vip_master $HOSTNAME" >>/etc/hosts
+    fi
+
     mkdir -p $data_dir
 
     drbdadm secondary all
@@ -180,7 +185,11 @@ failover() {
 
     sleep 2
     echo "config skyfs ..."
-    pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs" options="noatime,nodiratime,noexec"
+    if [ "$losetup_dev" != "" ]; then
+        pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd1" directory="/drbd" fstype="xfs" options="noatime,nodiratime,noexec"
+    else
+        pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd/by-res/skydata" directory="/drbd" fstype="xfs" options="noatime,nodiratime,noexec"
+    fi
 }
 
 recover() {
