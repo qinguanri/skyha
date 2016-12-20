@@ -111,7 +111,7 @@ install() {
 
     echo "semanage permissive -a drbd_t, please wait seconds ..."
     semanage permissive -a drbd_t
-    drbdadm --force create-md skydata
+    drbdadm create-md skydata
     modprobe drbd
     drbdadm up skydata
     return 0
