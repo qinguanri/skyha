@@ -35,6 +35,11 @@ prepare() {
         echo "$slave_ip $slave_hostname" >> /etc/hosts
     fi
 
+    cat /etc/hosts | grep "$vip_master"
+    if [ $? -ne 0 ]; then
+        echo "$vip_master dbmaster" >>/etc/hosts
+    fi
+
     echo "clean pacemaker's configs and corosync's configs ..."
     [ -f /var/lib/pacemaker/cib/cib.xml ] && rm -rf /var/lib/pacemaker/cib/cib*
     [ -f /etc/corosync/corosync.conf ] && rm -f /etc/corosync/corosync.conf

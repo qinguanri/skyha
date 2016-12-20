@@ -19,11 +19,6 @@ prepare() {
         hostnamectl set-hostname "$slave_hostname"
     fi
 
-    cat /etc/hosts | grep "$vip_master"
-    if [ $? -ne 0 ]; then
-        echo "$vip_master $HOSTNAME" >>/etc/hosts
-    fi
-
     mkdir -p $data_dir
 
     drbdadm secondary all
