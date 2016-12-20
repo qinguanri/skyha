@@ -45,17 +45,28 @@ install() {
         yum install -y --disablerepo=\* --enablerepo=Drbd drbd84-utils;
     fi 
 
-    rm -f $data_dir/drbd.img
-    echo "create virtual block device ... "
-    dd if=/dev/zero of=$data_dir/drbd.img bs=1M count=0 seek=$drbd_size
+    disk_master=""
+    disk_slave=""
+    ## 1. use loop back device
+    if [ "$losetup_dev" != "" ]; then
+        rm -f $data_dir/drbd.img
+        echo "create virtual block device ... "
+        dd if=/dev/zero of=$data_dir/drbd.img bs=1M count=0 seek=$drbd_size
 
-    ls -l $data_dir/drbd.img
-    if [ $? -ne 0 ]; then
-        echo "ERROR. create virtual block device failed."
-        return 1
+        ls -l $data_dir/drbd.img
+        if [ $? -ne 0 ]; then
+            echo "ERROR. create virtual block device failed."
+            return 1
+        fi
+
+        losetup_img
+        disk_master=$losetup_dev
+        disk_slave=$losetup_dev
+    ## 2. use logic volume with device mapper
+    else
+        disk_master=$lv_master
+        disk_slave=$lv_slave
     fi
-
-    losetup_img
 
     sed -i 's/usage-count yes/usage-count no/g' /etc/drbd.d/global_common.conf
     cat /etc/drbd.d/global_common.conf
@@ -87,11 +98,11 @@ install() {
         resync-rate 720M;
     }
     on $master_hostname {
-        disk $losetup_dev;
+        disk $disk_master;
         address $master_ip:7789;
     }
     on $slave_hostname {
-        disk $losetup_dev;
+        disk $disk_slave;
         address $slave_ip:7789;
     }
 }" > /etc/drbd.d/skydata.res
@@ -100,7 +111,7 @@ install() {
 
     echo "semanage permissive -a drbd_t, please wait seconds ..."
     semanage permissive -a drbd_t
-    drbdadm create-md skydata
+    drbdadm --force create-md skydata
     modprobe drbd
     drbdadm up skydata
     return 0
@@ -121,7 +132,7 @@ set_master() {
     do
         cat /proc/drbd | grep 'cs:Connected' | grep 'ds:UpToDate/UpToDate' | grep 'Primary'
         if [ $? -ne 0 ]; then
-            losetup $losetup_dev $drbd_dir/drbd.img
+            [ "$losetup_dev" != "" ] && losetup $losetup_dev $drbd_dir/drbd.img
         else
             break
         fi
@@ -232,7 +243,7 @@ solve_split_brain() {
     fi
     systemctl stop pacemaker.service
 
-    losetup_img
+    [ "$losetup_dev" != "" ] && losetup_img
 
     drbdadm up skydata
 

@@ -299,19 +299,22 @@ recover() {
     fi
 
     date
-    try=0
-    while [ $try -le 5 ]
-    do
-        losetup -a | grep 'drbd.img'
-        if [ $? -ne 0 ]; then
-            losetup $losetup_dev $data_dir/drbd.img
-        else
-            break
-        fi
 
-        sleep 1
-        let "try++"
-    done
+    if [ "$losetup_dev" != "" ]; then
+        try=0
+        while [ $try -le 5 ]
+        do
+            losetup -a | grep 'drbd.img'
+            if [ $? -ne 0 ]; then
+                losetup $losetup_dev $data_dir/drbd.img
+            else
+                break
+            fi
+
+            sleep 1
+            let "try++"
+        done
+    fi
 
     systemctl start docker.service
 
@@ -592,7 +595,8 @@ disable() {
 }
 
 boot() {
-    losetup $losetup_dev $data_dir/drbd.img
+
+    [ "$losetup_dev" != "" ] && losetup $losetup_dev $data_dir/drbd.img
     systemctl start docker.service
     systemctl start pacemaker.service
     pcs cluster unstandby

@@ -168,9 +168,14 @@ check_args_valid() {
         return 1
     fi
 
-    if [ ! -n "$losetup_dev" ] || [ "$losetup_dev" == "" ]; then
-        echo "WARN. losetup_dev is null.use default: $losetup_dev_default"
-        echo "losetup_dev=$losetup_dev_default" >> $WORK_DIR/conf/ha.conf
+    if [ "$lv_master" == "" ] || [ "$lv_slave" == "" ]; then 
+        ## use loop back device
+        if [ ! -n "$losetup_dev" ] || [ "$losetup_dev" == "" ]; then
+            echo "WARN. losetup_dev is null.use default: $losetup_dev_default"
+            echo "losetup_dev=$losetup_dev_default" >> $WORK_DIR/conf/ha.conf
+        fi
+    else
+        echo "drbd data block is used with $lv_master at $master_ip, used with $lv_slave at $slave_ip."
     fi
 
     return 0
