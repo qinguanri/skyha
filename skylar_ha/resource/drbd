@@ -62,7 +62,7 @@ install() {
         losetup_img
         disk_master=$losetup_dev
         disk_slave=$losetup_dev
-    ## 2. use logic volume with device mapper
+    ## 2. use logical volume with device mapper
     else
         disk_master=$lv_master
         disk_slave=$lv_slave

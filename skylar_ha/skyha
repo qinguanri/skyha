@@ -24,9 +24,11 @@ The most commonly used skyha commands are:
     failover    Config failover for ha system. $0 failover <pg|redis>. e.g: $0 failover pg or $0 failover redis.
     help        Show usage.
     install     Install a ha system. $0 install master_ip=1.2.3.4 slave_ip=1.2.3.5 vip_master=1.2.3.6 \
-                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000 losetup_dev=/dev/loop9
+                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=2000 \
+                lv_master=/dev/mapper/centos-drbd lv_slave=/dev/mapper/centos-drbd
     config      Set master_ip, slave_ip and so on. $0 config master_ip=1.2.3.4 slave_ip=1.2.3.5 vip_master=1.2.3.6 \
-                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=1000 losetup_dev=/dev/loop9
+                data_dir=/data master_hostname=db1 slave_hostname=db2 drbd_size=2000 \
+                [losetup_dev=/dev/loop9] [lv_master=/dev/mapper/centos-drbd lv_slave=/dev/mapper/centos-drbd]
     recover     WHen master or slave crash, we need to 'recover' it. $0 recover.
     enable      Enable some function. e.g: $0 enable auto_recovery.
     disable     Disable some function. e.g: $0 disable auto_recovery.
