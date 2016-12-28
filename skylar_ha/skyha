@@ -234,6 +234,8 @@ failover() {
     fi
 
     check_ha_status
+    check_ha_status
+    check_ha_status
     if [ $? -ne 0 ]; then
         echo "ERROR. config failed."
         return 1  
@@ -327,6 +329,9 @@ recover() {
         ip addr | grep $vip_master
         if [ $? -ne 0 ]; then
             recover_slave $1
+            echo "waiting for starting maser and slave ..."
+            check_ha_status
+            check_ha_status
             check_ha_status
         fi
     fi
@@ -340,6 +345,7 @@ recover() {
 }
 
 check_ha_status() {
+    echo "check ha status ..."
     TRY=1 
     while [ $TRY -lt 60 ]
     do
@@ -348,7 +354,7 @@ check_ha_status() {
             return 0
         fi
         
-        systemctl status pacemaker.service
+        systemctl status pacemaker.service >>/dev/null
         if [ $? -ne 0 ]; then
             systemctl start pacemaker.service
             sleep 2
@@ -356,7 +362,7 @@ check_ha_status() {
 
         pcs cluster unstandby --all
 
-        sleep 5
+        sleep 1
         let "TRY++"
     done
     echo "ERROR. HA status is incorrect."
@@ -816,6 +822,7 @@ switch() {
     echo "pcs cluster standby $NODENAME ..."
     pcs cluster standby $NODENAME
 
+    echo "waiting for starting master ..."
     try=1
     while [ $try -lt 120 ]
     do
@@ -833,7 +840,11 @@ switch() {
     echo "pcs cluster unstandby $NODENAME ..."
     pcs cluster unstandby $NODENAME
 
+    # check ha status three times. if ha status ok, it will return quickly. else it will use about 3 minutes.
     check_ha_status
+    check_ha_status
+    check_ha_status
+
     if [ $? -ne 0 ]; then
         echo "ERROR. Switch Failed."
         return 1
