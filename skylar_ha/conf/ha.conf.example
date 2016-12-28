@@ -5,4 +5,3 @@ data_dir=/data
 master_hostname=db1
 slave_hostname=db2
 drbd_size=50000
-losetup_dev=/dev/loop9
