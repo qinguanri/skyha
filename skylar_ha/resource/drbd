@@ -301,7 +301,6 @@ check_status() {
     fi
 
     cat /proc/drbd
-    echo "ERROR. drbd status is wrong. You should need to fix it."
     return 1
 }
 

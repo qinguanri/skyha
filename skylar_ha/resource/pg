@@ -156,8 +156,7 @@ check_status() {
         echo "OK. PG is started."
         return 0
     fi
-    
-    echo "ERROR. PG is not started."
+
     return 1
 }
 

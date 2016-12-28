@@ -375,7 +375,6 @@ check_status() {
         if [ -f $file ]; then
             $file "status"
             if [ $? -ne 0 ]; then
-                echo "ERROR. HA status is incorrect. Execute $file status failed."
                 return 1
             fi
         fi

@@ -80,11 +80,9 @@ failover() {
 check_ha_status() {
     crm_mon -Afr -1 | grep bstkd | grep Started >>/dev/null
     if [ $? -eq 0 ]; then
-        echo "OK. Beanstalkd is started."
         return 0
     fi
 
-    echo "ERROR. Beanstalkd is not started."
     return 1
 }
 

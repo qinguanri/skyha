@@ -69,7 +69,6 @@ check_status() {
         return 0
     fi
 
-    echo "ERROR. NFS is running incorrectly."
     return 1
 }
 

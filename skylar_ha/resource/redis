@@ -76,7 +76,6 @@ check_ha_status() {
         return 0
     fi
 
-    echo "ERROR. Redis is not started."
     return 1
 }
 
