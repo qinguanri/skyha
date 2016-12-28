@@ -25,6 +25,11 @@ install() {
         yum install -y --disablerepo=\* --enablerepo=Nfs nfs-utils rpcbind; sleep 1
     fi
 
+    HEARTBEAT_RSC_DIR="/usr/lib/ocf/resource.d/heartbeat"
+    rm $HEARTBEAT_RSC_DIR/nfsserver
+    cp $WORK_DIR/dependent/nfsserver $HEARTBEAT_RSC_DIR/nfsserver
+    chmod 755 $HEARTBEAT_RSC_DIR/nfsserver
+
     systemctl start rpcbind.service
 
     echo "" > /etc/exports
