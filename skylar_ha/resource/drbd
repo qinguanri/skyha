@@ -78,8 +78,8 @@ install() {
     meta-disk internal;
     device /dev/drbd1;
     net {
-        verify-alg crc32;
-        csums-alg crc32;
+        verify-alg crc32c;
+        csums-alg crc32c;
         max-buffers 10000;
         max-epoch-size 10000;
         sndbuf-size 0;
