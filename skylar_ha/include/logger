@@ -1,0 +1,19 @@
+
+LOG_FILE="/var/log/skylar_ha_install.log"
+
+# usage: log_info <log_content>
+log_info()  { 
+    _log "INFO" "$1" 
+}
+
+log_warn()  { 
+    _log "WARN" "$1" 
+}
+
+log_error() { 
+    _log "ERROR" "$1" 
+}
+
+_log() { 
+    echo "$2"; echo "`date` $1 $2" >> $LOG_FILE 
+}
