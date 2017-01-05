@@ -41,7 +41,6 @@ prepare() {
 
     if ! disable_dhcp; then
         echo "ERROR. disable dhcp failed."
-        return 1
     fi
 
     return 0
@@ -67,7 +66,7 @@ install() {
     # if not exist rules, insert it
     for p in ${tcp_ports[@]}
     do
-        iptables -C INPUT -p tcp --dport $p -j ACCEPT 
+        iptables -C INPUT -p tcp --dport $p -j ACCEPT
         [ $? -ne 0 ] && iptables -I INPUT -p tcp --dport $p -j ACCEPT
     done
 
