@@ -13,6 +13,8 @@ PROC_FILE="$PROC_NAME.tar.gz"
 RECOVERY_LOG="/var/log/skyha_recovery.log"
 losetup_dev_default=/dev/loop9
 
+source $WORK_DIR/include/logger
+
 usage() {
     cat <<END
 skyha build a High Availabe system for postgresql/redis/beanstalkd.
@@ -34,6 +36,8 @@ The most commonly used skyha commands are:
     disable     Disable some function. e.g: $0 disable auto_recovery.
     show        Show HA status.
     switch-master-slave Switch the role of master and slave. This command can only do on master node.
+
+See log at $LOG_FILE.
 END
 }
 
@@ -41,10 +45,10 @@ END
 # do prepare before install.  prepare for environment, check args, check files and so on.
 prepare() {
     if [ ! -f "$WORK_DIR/conf/ha.conf" ]; then
-        echo "ERROR. can not find file: $WORK_DIR/conf/ha.conf"
+        log_error "ERROR. can not find file: $WORK_DIR/conf/ha.conf"
         return 1
     fi
-    
+
     if systemctl status pacemaker; then
         systemctl stop pacemaker
     fi
@@ -52,7 +56,7 @@ prepare() {
     if ! systemctl status docker.service; then
         systemctl start docker.service
         if [ $? -ne 0 ]; then
-            echo "ERROR. start docker.service failed."
+            log_error "ERROR. start docker.service failed."
             return 1
         fi
     fi
@@ -72,7 +76,7 @@ prepare() {
         if [ -f $file ]; then
             $file "prepare"
             if [ $? -ne 0 ]; then
-                echo "ERROR. Execute $file prepare failed."
+                log_error "ERROR. Execute $file prepare failed."
                 return 1
             fi
         fi
@@ -91,7 +95,7 @@ install() {
         if [ -f $file ]; then
             $file "install"
             if [ $? -ne 0 ]; then
-                echo "ERROR. execute $file install failed."
+                log_error "ERROR. execute $file install failed."
                 return 1
             fi
         fi
@@ -104,10 +108,10 @@ install() {
 failover() {
     mode=$1
     if [ "$mode" != "STANDALONE" ]; then
-        echo "set drbd master ..."
+        log_info "set drbd master ..."
         $WORK_DIR/resource/drbd set_master
         if [ $? -ne 0 ]; then
-            echo "drbd set master failed."
+            log_error "drbd set master failed."
             return 1
         fi
     fi
@@ -138,9 +142,9 @@ failover() {
     slave_corosync_run=`pcs status corosync | grep $slave_hostname | grep -v grep | wc -l`
 
     if [ "$mode" == "STANDALONE" ]; then
-        echo "failover mode is $mode"
+        log_info "failover mode is $mode"
     elif [ "$master_corosync_run" == "0" ] || [ "$slave_corosync_run" == "0" ]; then
-        echo "ERROR. master's corosync or slave's corosync run error."
+        log_error "ERROR. master's corosync or slave's corosync run error."
         pcs status corosync
         return 1
     fi
@@ -153,12 +157,12 @@ failover() {
         if systemctl status pacemaker.service; then
             break
         fi
-        echo "pacemaker is starting ..."
+        log_info "pacemaker is starting ..."
         sleep 1
         let "try_count++"
     done
     if ! systemctl status pacemaker.service; then
-        echo "ERROR. pacemaker start failed."
+        log_error "ERROR. pacemaker start failed."
         return 1
     fi
 
@@ -166,7 +170,7 @@ failover() {
     MIN=0
     MAX=32
     if [ "$cidr_netmask" -lt "$MIN" ] || [ "$cidr_netmask" -gt "$MAX" ]; then
-        echo "ERROR. cidr_netmask error. use default"
+        log_error "ERROR. cidr_netmask error. use default"
         cidr_netmask="24"
     fi
  
@@ -199,7 +203,7 @@ failover() {
         if [ -f $file ]; then
             $file "failover"
             if [ $? -ne 0 ]; then
-                echo "ERROR. execute $file failover failed."
+                log_error "ERROR. execute $file failover failed."
                 return 1
             fi
         fi
@@ -226,7 +230,7 @@ failover() {
     if [ "$mode" == "STANDALONE" ]; then
         $WORK_DIR/resource/pg check_master_status
         if [ $? -ne 0 ]; then
-            echo "ERROR. PG master status is error."
+            log_error "ERROR. PG master status is error."
             return 1
         fi
         install_finished
@@ -237,7 +241,7 @@ failover() {
     check_ha_status
     check_ha_status
     if [ $? -ne 0 ]; then
-        echo "ERROR. config failed."
+        log_error "ERROR. config failed."
         return 1  
     fi
 
@@ -249,7 +253,7 @@ failover() {
 args_parse() {
     if [ ! -f $WORK_DIR/conf/ha.conf ]; then
         arguments="$@"
-        echo "$arguments" | xargs -n 1 > $WORK_DIR/conf/ha.conf
+        log_info "$arguments" | xargs -n 1 > $WORK_DIR/conf/ha.conf
     fi
 
     source $WORK_DIR/conf/ha.conf
@@ -261,7 +265,7 @@ args_parse() {
     fi
 
     if ! check_args_valid; then
-        echo "ERROR. arguments invalid"
+        log_error "ERROR. arguments invalid"
         usage
         exit 1
     fi
@@ -282,13 +286,13 @@ reset() {
         if [ -f $file ]; then
             $file "clean"
             if [ $? -ne 0 ]; then
-                echo "ERROR. execute $file clean failed."
+                log_error "ERROR. execute $file clean failed."
                 return 1
             fi
         fi
     done
 
-    echo "remove images ..."
+    log_info "remove images ..."
     docker rmi skylar_redis
     docker rmi skylar_pg
     docker rmi skylar_beanstalkd
@@ -298,7 +302,7 @@ reset() {
 # invoke the resouce's recover method. recover resouce back to ha status.
 recover() {
     if check_status; then
-        echo "OK. HA status is correct."
+        log_info "OK. HA status is correct."
         return 0
     fi
 
@@ -329,7 +333,7 @@ recover() {
         ip addr | grep $vip_master
         if [ $? -ne 0 ]; then
             recover_slave $1
-            echo "waiting for starting maser and slave ..."
+            log_info "waiting for starting maser and slave ..."
             check_ha_status
             check_ha_status
             check_ha_status
@@ -337,20 +341,20 @@ recover() {
     fi
 
     if [ $? -ne 0 ]; then
-        echo "ERROR. Recover failed. `date`"
+        log_error "ERROR. Recover failed. `date`"
         return 1
     fi
 
-    echo "Done. Recover finished at time: `date`"
+    log_info "Done. Recover finished at time: `date`"
 }
 
 check_ha_status() {
-    echo "check ha status ..."
+    log_info "check ha status ..."
     TRY=1 
     while [ $TRY -lt 60 ]
     do
         if check_status; then
-            echo "OK. HA status is correct."
+            log_info "OK. HA status is correct."
             return 0
         fi
         
@@ -365,7 +369,7 @@ check_ha_status() {
         sleep 1
         let "TRY++"
     done
-    echo "ERROR. HA status is incorrect."
+    log_error "ERROR. HA status is incorrect."
     return 1
 }
 
@@ -382,7 +386,7 @@ check_status() {
 }
 
 check_master_status() {
-    echo "check master status ..."
+    log_info "check master status ..."
     try=1
 
     while [ $try -lt 60 ]
@@ -411,10 +415,10 @@ check_master_status() {
             continue
         fi
         
-        echo "OK. Master status is correct."
+        log_info "OK. Master status is correct."
         return 0
     done
-    echo "ERROR. Master status is incorrect."
+    log_error "ERROR. Master status is incorrect."
     return 1
 }
 
@@ -427,7 +431,7 @@ slave_is_work() {
 }
 
 recover_master() {
-    echo "recover master, please wait minutes ..."
+    log_info "recover master, please wait minutes ..."
     pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
     if [ $pacemaker_proc -gt 0 ]; then
         kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
@@ -444,7 +448,7 @@ recover_master() {
 }
 
 recover_slave() {
-    echo "recover slave ..."
+    log_info "recover slave ..."
     systemctl start docker.service
     systemctl start pacemaker.service
     pcs cluster unstandby --all
@@ -455,7 +459,7 @@ recover_slave() {
         if [ -f $file ]; then
             $file "recover"
             if [ $? -ne 0 ]; then
-                echo "ERROR. Execute $file recover failed."
+                log_error "ERROR. Execute $file recover failed."
                 return 1
             fi
         fi
@@ -465,20 +469,20 @@ recover_slave() {
 
 # check args and install just for one host.
 run() {
-    echo "(1) ******* Prepare environment ..."
+    log_info "(1) ******* Prepare environment ..."
     if ! prepare; then
-        echo "ERROR. Prepare environment failed."
+        log_error "ERROR. Prepare environment failed."
         exit 1
     fi
 
-    echo "(2) ******* Install ..."
+    log_info "(2) ******* Install ..."
     if ! install; then
-        echo "ERROR. Install skylar high available failed."
+        log_error "ERROR. Install skylar high available failed."
         exit 1
     fi
 
     enable "auto_recovery"
-    echo "OK. Install succeed."
+    log_info "OK. Install succeed."
 }
 
 setup() {
@@ -510,8 +514,9 @@ install_finished() {
                /  |   |  |         |  |  |  |
               "---"  /___|        /___|  /__|
                      `"""         `"""  `"""
+'
 
-    Congratulations! Installation completed! '
+    log_info "Congratulations! Installation completed!"
 }
 
 check_args_valid()
@@ -528,48 +533,48 @@ install_all() {
     args_parse ${arguments[@]}
     find $INSTALL_DIR -name "$PROC_FILE"
     if [ $? -ne 0 ]; then
-        echo "ERROR. Cannot find file: $INSTALL_DIR/$PROC_FILE"
+        log_error "ERROR. Cannot find file: $INSTALL_DIR/$PROC_FILE"
         return 1
     fi
 
     hostname -I | grep "$master_ip"
     if [ $? -ne 0 ]; then
-        echo "ERROR. This host is not $master_ip, please kill this process then install at $master_ip."
+        log_error "ERROR. This host is not $master_ip, please kill this process then install at $master_ip."
         sleep 120
     fi
 
     clear
-    echo "******* 1. Copy $PROC_FILE to root@$slave_ip:$INSTALL_DIR"
+    log_info "******* 1. Copy $PROC_FILE to root@$slave_ip:$INSTALL_DIR"
     ssh root@$slave_ip "ls -l $INSTALL_DIR/$PROC_NAME/skyha"
     if [ $? -ne 0 ]; then
-        echo "copy file to root@$slave_ip, please wait seconds"
+        log_info "copy file to root@$slave_ip, please wait seconds"
         ssh root@$slave_ip "mkdir -p $INSTALL_DIR"
         scp $INSTALL_DIR/$PROC_FILE root@$slave_ip:$INSTALL_DIR
         ssh root@$slave_ip "cd $INSTALL_DIR; tar xzvf $PROC_FILE; chmod +x $INSTALL_DIR/$PROC_NAME/skyha"
         if [ $? -ne 0 ]; then
-            echo "ERROR. scp from $master_ip to $slave_ip failed."
+            log_error "ERROR. scp from $master_ip to $slave_ip failed."
             return 1
         fi
     fi
     scp $INSTALL_DIR/$PROC_NAME/conf/ha.conf root@$slave_ip:$INSTALL_DIR/$PROC_NAME/conf
 
-    echo "******* 2. Install ..."
+    log_info "******* 2. Install ..."
     run
     if [ $? -ne 0 ]; then
-        echo "ERROR. Install at master failed."
+        log_error "ERROR. Install at master failed."
         return 1
     fi
     
     ssh root@$slave_ip "$INSTALL_DIR/$PROC_NAME/skyha setup ${args[@]}"
     if [ $? -ne 0 ]; then
-        echo "ERROR. Install at slave failed."
+        log_error "ERROR. Install at slave failed."
         return 1
     fi
 
-    echo "******* 3. Config failover ..."
+    log_info "******* 3. Config failover ..."
     failover
     if [ $? -ne 0 ]; then
-        echo "ERROR. Config failover failed."
+        log_error "ERROR. Config failover failed."
         return 1
     fi
 }
@@ -579,7 +584,7 @@ config() {
     arguments=($@)
     unset arguments[0]
     args_parse ${arguments[@]}
-    echo "config succeed."
+    log_info "config succeed."
 }
 
 enable() {
@@ -589,7 +594,7 @@ enable() {
         if [ $? -eq 0 ]; then
             return 0
         fi
-        echo "$WORK_DIR/skyha boot >> $RECOVERY_LOG &" >> /etc/rc.d/rc.local
+        log_info "$WORK_DIR/skyha boot >> $RECOVERY_LOG &" >> /etc/rc.d/rc.local
         chmod +x /etc/rc.local /etc/rc.d/rc.local
     fi
 }
@@ -616,7 +621,7 @@ solve_split_brain() {
 
 show_status() {
     if [ ! -n "$master_ip" ] || [ ! -n "$slave_ip" ]; then
-        echo "ERROR. master_ip or slave_ip is incorrect."
+        log_error "ERROR. master_ip or slave_ip is incorrect."
         return 0
     fi
 
@@ -632,7 +637,7 @@ show_status() {
 
         res=`ping -c 1 "$slave_ip"`
         if [ "$?" -ne 0 ]; then
-            echo "ERROR. Ping $slave_ip failed."
+            log_error "ERROR. Ping $slave_ip failed."
         else
             slave_data_dir_info=`ssh root@$slave_ip "du -sh $data_dir/* 2>/dev/null"`
             slave_drbd_dir_info=`ssh root@$slave_ip "du -sh /drbd/* 2>/dev/null"`
@@ -642,7 +647,7 @@ show_status() {
     if [ "$my_ip" == "$slave_ip" ]; then
         res=`ping -c 1 "$master_ip"`
         if [ "$?" -ne 0 ]; then
-            echo "ERROR. Ping $master_ip failed."
+            log_error "ERROR. Ping $master_ip failed."
         else
             master_data_dir_info=`ssh root@$master_ip "du -sh $data_dir/* 2>/dev/null"`
             master_drbd_dir_info=`ssh root@$master_ip "du -sh /drbd/* 2>/dev/null"`
@@ -686,7 +691,7 @@ DRBD Image Info:
 
     crm_mon -Afr -1
     if [ $? -ne 0 ]; then
-        echo "ERROR. Pacemaker may not start correctly."
+        log_error "ERROR. Pacemaker may not start correctly."
     fi
 }
 
@@ -801,14 +806,14 @@ get_peer_ip() {
 switch() {
     ip addr | grep $vip_master
     if [ $? -ne 0 ]; then
-        echo "ERROR. This host is not master. Please do switch on master."
+        log_error "ERROR. This host is not master. Please do switch on master."
         return 1
     fi
 
-    echo "Check ha status, please wait ..."
+    log_info "Check ha status, please wait ..."
     check_ha_status
     if [ $? -ne 0 ]; then
-        echo "ERROR. HA status is incorrect. It can not switch."
+        log_error "ERROR. HA status is incorrect. It can not switch."
         return 1
     fi
 
@@ -818,10 +823,10 @@ switch() {
         NODENAME=$slave_hostname
     fi
 
-    echo "pcs cluster standby $NODENAME ..."
+    log_info "pcs cluster standby $NODENAME ..."
     pcs cluster standby $NODENAME
 
-    echo "waiting for starting master ..."
+    log_info "waiting for starting master ..."
     try=1
     while [ $try -lt 120 ]
     do
@@ -836,7 +841,7 @@ switch() {
         let "try++"
     done
 
-    echo "pcs cluster unstandby $NODENAME ..."
+    log_info "pcs cluster unstandby $NODENAME ..."
     pcs cluster unstandby $NODENAME
 
     # check ha status three times. if ha status ok, it will return quickly. else it will use about 3 minutes.
@@ -845,10 +850,10 @@ switch() {
     check_ha_status
 
     if [ $? -ne 0 ]; then
-        echo "ERROR. Switch Failed."
+        log_error "ERROR. Switch Failed."
         return 1
     else
-        echo "OK. Switch succeed."
+        log_info "OK. Switch succeed."
         return 0
     fi
 }
