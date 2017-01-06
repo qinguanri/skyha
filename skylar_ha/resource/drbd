@@ -27,12 +27,16 @@ prepare() {
     used_dev=`losetup -a | grep 'drbd.img' | awk -F ':' {'print $1'}`
     losetup -d $used_dev
 
-    free_size=`df $data_dir | grep '/' | awk {'print $4'}`
-    let free_size=$free_size/1000
-    if [ $free_size -lt $drbd_size ]; then
-        echo "ERROR. There is not enough space for drbd at $my_ip."
-        return 1
+    # if use loopback device, we should check the free size for creating drbd.img.
+    if [ "$losetup_dev" == "" ]; then
+        free_size=`df $data_dir | grep '/' | awk {'print $4'}`
+        let free_size=$free_size/1000
+        if [ $free_size -lt $drbd_size ]; then
+            echo "ERROR. There is not enough space for drbd at $my_ip."
+            return 1
+        fi
     fi
+
     return 0
 }
 
