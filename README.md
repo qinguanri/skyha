@@ -384,7 +384,7 @@ ns:0 nr:0 dw:26412 dr:38552 al:4 bm:0 lo:0 pe:0 ua:0 ap:0 ep:1 wo:f oos:75096
 # /opt/skylar_ha/skyha reset
 ```
 
-### 6. 如果天擎的docker镜像包有更新，如何安装？
+### 6. 如果ocker镜像包有更新，如何安装？
 
 当前redis、pg、beanstalkd的镜像包分别为skylar_pg_6.0.0.2100.tar，skylar_redis_6.0.0.2000.tar，skylar_beanstalkd_6.0.0.2000.tar，如果需要更新tar包，需要进行tar文件替换，用新的tar文件替换/opt/skylar_ha/dependent目录下的tar文件，最后再运行第2节中的安装操作。注意，（1）如果pg数据库的版本不变，保持pg9.5，就直接替换文件，不用改配置；（2）如果pg版本变化，比如从9.5升级到9.6，就需要修改部署脚本，更新部署代码包。
 
