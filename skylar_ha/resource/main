@@ -1,0 +1,123 @@
+#!/bin/sh
+#
+# Description: resource for container skylar_main
+#
+# Authors:      Qin Guanri
+#
+# Copyright:    2016 403709339@qq.com
+# License:      
+#
+###############################################################################
+# Global
+WORK_DIR=$(cd `dirname $0`; cd ../; pwd)
+
+IMAGE_FILE=`find $WORK_DIR/dependent/ -name "skylar_main*"`
+IMAGE_NAME="skylar_main"
+CONTAINER="main"
+
+. $WORK_DIR/conf/ha.conf
+
+
+my_ip="$master_ip"
+hostname -I | grep "$slave_ip"
+if [ $? -eq 0 ]; then
+    my_ip="$slave_ip"
+fi
+
+prepare() {
+    docker images | grep $IMAGE_NAME
+    if [ $? -ne 0 ]; then
+        echo "docker load < $IMAGE_FILE. Please wait minutes..."
+        docker load < "$IMAGE_FILE"
+    fi
+    return 0
+}
+
+install_main() {
+    docker ps -a | grep $CONTAINER
+    if [ $? -eq 0 ]; then
+        docker stop $CONTAINER
+        docker rm $CONTAINER
+    fi
+    return 0
+}
+
+is_main_run() {
+    docker ps | grep $CONTAINER >>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "skylar_main container is not running."
+        return 1
+    fi
+
+    TRY=1
+    MAX=10
+    while [ $TRY -lt $MAX ]
+    do
+        IS_ALIVE=`ps -ef | grep -v grep | grep main`
+        if [ $? -eq 0 ]; then
+            return 0
+        fi
+        sleep 1
+        let "TRY++"
+    done
+
+    echo "skylar_main is not running."
+    return 1
+}
+
+failover() {
+    pcs -f resource_cfg resource create main docker image=$IMAGE_NAME:latest \
+        run_opts="--net=host --privileged=true" name="$CONTAINER" \
+        monitor_cmd="sleep 2 && ps -ef | grep nginx" \
+        op start timeout="60s" interval="0s" on-fail="restart" \
+        op monitor timeout="60s" interval="10s" on-fail="restart" \
+        op stop timeout="60s" interval="0s" on-fail="block"
+
+    return $?
+}
+
+check_ha_status() {
+    crm_mon -Afr -1 | grep main | grep Started >>/dev/null
+    if [ $? -eq 0 ]; then
+        return 0
+    fi
+
+    return 1
+}
+
+recover() {
+    if ! systemctl status docker.service; then
+        systemctl start docker.service
+    fi
+
+    if ! systemctl status pacemaker.service; then
+        systemctl start pacemaker.service
+        sleep 5
+    fi
+
+    pcs cluster unstandby
+}
+
+
+clean() {
+    return 0
+}
+
+source $WORK_DIR/conf/ha.conf
+
+case "$1" in
+    prepare)    prepare
+                exit $?;;
+    install)    install_main
+                exit $?;;
+    failover)   failover
+                exit $?;;
+    recover)    recover $2
+                exit $?;;
+    status)     check_ha_status
+                exit $?;;
+    clean)      clean
+                exit $?;;
+    *)          $@
+                exit $?;;
+esac

@@ -210,7 +210,7 @@ failover() {
     done
 
     # HA组件分组:
-    pcs -f resource_cfg resource group add master-group skyfs vip-master postgres redis bstkd nfs-daemon nfs-root nfs-notify
+    pcs -f resource_cfg resource group add master-group skyfs vip-master postgres redis bstkd main nfs-daemon nfs-root nfs-notify
 
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
@@ -277,9 +277,11 @@ reset() {
     docker stop redis
     docker stop pg
     docker stop beanstalkd
+    docker stop main
     docker rm redis
     docker rm pg
     docker rm beanstalkd
+    docker rm main
 
     for file in $WORK_DIR/manager/* $WORK_DIR/resource/*
     do
@@ -296,6 +298,7 @@ reset() {
     docker rmi skylar_redis
     docker rmi skylar_pg
     docker rmi skylar_beanstalkd
+    docker rmi main
 }
 
 

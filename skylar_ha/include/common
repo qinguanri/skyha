@@ -188,6 +188,11 @@ check_args_valid() {
             echo "losetup_dev=$losetup_dev_default" >> $WORK_DIR/conf/ha.conf
         fi
     else
+        fdisk -l | grep -e "$lv_master" -e "$lv_slave" >>/dev/null
+        if [ $? -ne 0 ]; then
+            echo "logic volume invalid. cannot find $lv_master or $lv_slave by 'fdisk -l'."
+            return 1
+        fi
         echo "drbd data block is used with $lv_master at $master_ip, used with $lv_slave at $slave_ip."
     fi
 
