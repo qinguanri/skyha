@@ -67,8 +67,8 @@ is_main_run() {
 
 failover() {
     pcs -f resource_cfg resource create main docker image=$IMAGE_NAME:latest \
-        run_opts="--net=host --privileged=true" name="$CONTAINER" \
-        monitor_cmd="sleep 2 && supervisorctl status nginx|grep RUNNING" \
+        run_opts="--net=host --privileged=true -v /drbd/main/supervisord/main:/tmp -v /drbd/main/skylarminide/data:/opt/tools/skylarminide/data -v /drbd/main/download/distribution:/opt/openresty/download/distribution -v /drbd/main/download/report:/opt/openresty/download/report -v /drbd/main/download/leak:/opt/openresty/download/leak -v /drbd/main/nginx/logs:/opt/openresty/nginx/logs -v /drbd/main/skylar_cli/config:/opt/tools/skylar_cli/config -v /drbd/main/config:/opt/tools/config" name="$CONTAINER" \
+        monitor_cmd="supervisorctl status nginx|grep RUNNING" \
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="10s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
