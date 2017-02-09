@@ -68,7 +68,7 @@ is_main_run() {
 failover() {
     pcs -f resource_cfg resource create main docker image=$IMAGE_NAME:latest \
         run_opts="--net=host --privileged=true" name="$CONTAINER" \
-        monitor_cmd="sleep 2 && ps -ef | grep nginx" \
+        monitor_cmd="sleep 2 && supervisorctl status nginx|grep RUNNING" \
         op start timeout="60s" interval="0s" on-fail="restart" \
         op monitor timeout="60s" interval="10s" on-fail="restart" \
         op stop timeout="60s" interval="0s" on-fail="block"
