@@ -149,7 +149,7 @@ set_master() {
 
     echo "OK. Data status is uptodata."
 
-    mkfs.xfs /dev/drbd1
+    mkfs.xfs -f /dev/drbd1
 
     mkdir -p /drbd
     mount /dev/drbd1 /drbd
