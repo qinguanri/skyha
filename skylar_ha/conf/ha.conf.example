@@ -4,4 +4,5 @@ vip_master=192.168.75.140
 data_dir=/data
 master_hostname=db1
 slave_hostname=db2
-drbd_size=50000
+lv_master=/dev/mapper/centos-drbd
+lv_slave=/dev/mapper/centos-drbd
