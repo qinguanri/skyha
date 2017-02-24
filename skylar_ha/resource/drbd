@@ -34,6 +34,8 @@ prepare() {
     lv_name=`echo "$lv_master" | awk -F '-' '{print $2}'`
     lvpath=`lvdisplay | grep 'LV Path' | grep $lv_name | awk '{print $3}'`
     umount "$lvpath"
+    umount "$lv_master"
+    umount "$lv_slave"
 
     # if use loopback device, we should check the free size for creating drbd.img.
     if [ "$losetup_dev" == "" ]; then
