@@ -27,6 +27,14 @@ prepare() {
     used_dev=`losetup -a | grep 'drbd.img' | awk -F ':' {'print $1'}`
     losetup -d $used_dev
 
+    ### try to find logic volume for drbd, and umount it
+    cd
+    lvpath=`lvdisplay | grep 'LV Path' | grep drbd | awk '{print $3}'`
+    umount "$lvpath"
+    lv_name=`echo "$lv_master" | awk -F '-' '{print $2}'`
+    lvpath=`lvdisplay | grep 'LV Path' | grep $lv_name | awk '{print $3}'`
+    umount "$lvpath"
+
     # if use loopback device, we should check the free size for creating drbd.img.
     if [ "$losetup_dev" == "" ]; then
         free_size=`df $data_dir | grep '/' | awk {'print $4'}`
