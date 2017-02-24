@@ -253,7 +253,11 @@ failover() {
 args_parse() {
     if [ ! -f $WORK_DIR/conf/ha.conf ]; then
         arguments="$@"
-        log_info "$arguments" | xargs -n 1 > $WORK_DIR/conf/ha.conf
+        if [ "$arguments" == "" ] || [ $# -lt 1 ]; then
+            echo "install with old arguments..."
+        else
+            log_info "$arguments" | xargs -n 1 > $WORK_DIR/conf/ha.conf
+        fi
     fi
 
     source $WORK_DIR/conf/ha.conf
