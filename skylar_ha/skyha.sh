@@ -28,7 +28,7 @@ MONITOR_CMD_MAIN="supervisorctl status nginx | grep RUNNING"
 MONITOR_CMD_REDIS="redis-cli time >/dev/null"
 MONITOR_CMD_POSTGRES="su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\""
 
-log_info()  { 
+log_info()  {
     _log "INFO" "$1"
 }
 
