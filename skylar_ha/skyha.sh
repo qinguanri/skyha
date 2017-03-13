@@ -28,12 +28,7 @@ MONITOR_CMD_MAIN="supervisorctl status nginx | grep RUNNING"
 MONITOR_CMD_REDIS="redis-cli time >/dev/null"
 MONITOR_CMD_POSTGRES="su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\""
 
-source $CONF
-my_ip="$MASTER_IP"
-hostname -I | grep "$SLAVE_IP"
-if [ $? -eq 0 ]; then
-    my_ip="$SLAVE_IP"
-fi
+
 
 log_info()  { 
     _log "INFO" "$1"
@@ -51,10 +46,31 @@ _log() {
     echo "$2"; echo "`date` $1 $2" >> $LOG 
 }
 
+usage() {
+    cat <<END
+skyha build a High Availabe system for postgresql/redis/beanstalkd.
+
+usage: skyha <command> [<args>]
+
+The most commonly used skyha commands are:
+    help        Show usage.
+    install     Install a ha system. $0 install
+    show        Show HA status.
+    switch-master-slave Switch the role of master and slave. This command can only do on master node.
+
+See log at $LOG_FILE.
+END
+}
+
 # 检查配置文件的配置是否正确，配置文件默认为 /etc/skyha/ha.conf
 # 在启动服务之前，务必先要检查配置的正确性
 check_conf() {
-    log_info '--> checking configs ...'
+    log_info '--> Checking configs ...'
+
+    if ! -f $CONF; then
+        log_error "Cannot find config file: $CONF"
+        return 1
+    fi
 
     ping -c 1 "$MASTER_IP" >> /dev/null
     if [ $? -ne 0 ]; then
@@ -125,7 +141,7 @@ is_installed() {
 }
 
 # 配置 pacemaker、drbd、nfs 等服务的配置文件、启动参数
-config_service() {
+config_services() {
     # **** 更新 resouce agent
     # 我们修改了官方 resource agent: docker 的源码，来满足我们的业务需求。
     # 因此在启动 pacemaker 之前，先要做一次散文件替换。
@@ -181,7 +197,7 @@ config_service() {
 }
 
 # 启动服务
-startup_service() {
+startup_services() {
     systemctl start pcsd.service
     systemctl enable pcsd.service
     echo hacluster | passwd hacluster --stdin
@@ -361,13 +377,13 @@ config_ha_resources() {
     # HA组件分组:
     pcs -f resource_cfg resource group add master-group skyfs vip-master "$CONTAINER_LIST" nfs-daemon nfs-root nfs-notify
 
-    ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
+    # HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
 
-    ## HA组件启动顺序约束：
+    # HA组件启动顺序约束：
     pcs -f resource_cfg constraint order promote drbd-cluster then start master-group score=INFINITY
 
-    ## HA 首次启动位置约束
+    # HA 首次启动位置约束
     pcs -f resource_cfg constraint location drbd-cluster prefers $MASTER_HOSTNAME=10
 
     # **** 提交配置
@@ -377,13 +393,6 @@ config_ha_resources() {
     sleep 2
     pcs cluster unstandby --all
 
-    check_ha_status
-    check_ha_status
-    check_ha_status
-    if [ $? -ne 0 ]; then
-        log_error "ERROR. config failed."
-        return 1
-    fi
 }
 
 check_ha_status() {
@@ -394,7 +403,7 @@ check_ha_status() {
             log_info "OK. HA status is correct."
             return 0
         fi
-        
+
         systemctl status pacemaker.service >>/dev/null
         if [ $? -ne 0 ]; then
             systemctl start pacemaker.service
@@ -410,11 +419,84 @@ check_ha_status() {
     return 1
 }
 
+print_finished() {
+    echo '
+                                 
+            Skylar  High  Available
+                Powered by Gary
+
+              ___.-~"~-._   __....__
+            .`    `    \ ~"~        ``-.
+           /` _      )  `\              `\
+          /`  a)    /     |               `\
+         :`        /      |                 \
+    <`-._|`  .-.  (      /   .            `;\\
+     `-. `--`_.`-.;\___/`   .      .       | \\
+  _     /:--`     |        /     /        .`  \\
+ ("\   /`/        |       `     `         /    :`;
+ `\`\_/`/         .\     /`~`--.:        /     ``
+   `._.`          /`\    |      `\      /(
+                 /  /\   |        `Y   /  \
+                J  /  Y  |         |  /`\  \
+               /  |   |  |         |  |  |  |
+              "---"  /___|        /___|  /__|
+                     `"""         `"""  `"""
+'
+
+    log_info "Congratulations! Installation completed!"
+}
+
 check()
 
 clean()
 
 reset()
+
+version() {
+    echo "version:1.0.1"
+}
+
+install() {
+    if ! install_rpms; then
+        log_error "Install rpms failed."
+        exit 1
+    fi
+
+    if ! config_service; then
+        log_error "Config services failed."
+        exit 1
+    fi
+}
+
+run() {
+    if ! startup_services; then
+        log_error "Start up service failed."
+        exit 1
+    fi
+
+    if ! config_ha_resources; then
+        log_error "Config HA resources failed."
+        exit 1
+    fi
+
+    # **** 检查HA状态，阻塞在这里，直到HA状态正确
+    check_ha_status
+    check_ha_status
+    check_ha_status
+    if [ $? -ne 0 ]; then
+        log_error "ERROR. config failed."
+        exit 1
+    fi
+
+    print_finished
+}
+
+source $CONF
+my_ip="$MASTER_IP"
+hostname -I | grep "$SLAVE_IP"
+if [ $? -eq 0 ]; then
+    my_ip="$SLAVE_IP"
+fi
 
 # 检查配置文件，如果配置错误，则直接退出程序
 if ! check_conf; then
@@ -436,7 +518,8 @@ case "$1" in
     #reset)                   reset;;
     #recover)                 recover $2;;
     #boot)                    boot;;
-    install)                 install_all $@;;
+    install)                 install $@;;
+    run)                     run $@;;
     #config)                  config $@;;
     #standalone)              failover STANDALONE;;
     #enable)                  enable $2;;
