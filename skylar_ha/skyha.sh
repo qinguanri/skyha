@@ -28,8 +28,6 @@ MONITOR_CMD_MAIN="supervisorctl status nginx | grep RUNNING"
 MONITOR_CMD_REDIS="redis-cli time >/dev/null"
 MONITOR_CMD_POSTGRES="su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\""
 
-
-
 log_info()  { 
     _log "INFO" "$1"
 }
@@ -415,7 +413,7 @@ check_ha_status() {
         sleep 1
         let "TRY++"
     done
-    log_error "ERROR. HA status is incorrect."
+    log_error "HA status is incorrect."
     return 1
 }
 
@@ -466,6 +464,7 @@ install() {
         log_error "Config services failed."
         exit 1
     fi
+    enable "auto_recovery"
 }
 
 run() {
@@ -479,7 +478,8 @@ run() {
         exit 1
     fi
 
-    # **** 检查HA状态，阻塞在这里，直到HA状态正确
+    # **** 检查HA状态，阻塞在这里，直到HA状态正确。
+    # 连续调用3次的目的是：ha状态不对时，耐心等待3次。如果ha状态正确，能立即返回。
     check_ha_status
     check_ha_status
     check_ha_status
@@ -489,6 +489,34 @@ run() {
     fi
 
     print_finished
+}
+
+boot() {
+    sleep 5
+    systemctl start docker.service
+    systemctl start pacemaker.service
+    pcs cluster unstandby
+    sleep 30
+    pcs cluster unstandby
+}
+
+enable() {
+    arg=$1
+    if [ "$arg" == "auto_recovery" ]; then
+        cat /etc/rc.d/rc.local | grep 'skyha boot'
+        if [ $? -eq 0 ]; then
+            return 0
+        fi
+        echo "skyha boot >> $LOG &" >> /etc/rc.d/rc.local
+        chmod +x /etc/rc.local /etc/rc.d/rc.local
+    fi
+}
+
+disable() {
+    arg=$1
+    if [ "$arg" == "auto_recovery" ]; then
+        sed -i '/skyha/d' /etc/rc.d/rc.local
+    fi
 }
 
 source $CONF
@@ -504,6 +532,8 @@ if ! check_conf; then
     exit 1
 fi
 
+cp -f ./skyha.sh "$BIN"
+
 # 设置本机的 hostname
 if [ "$my_ip" == "$MASTER_IP" ]; then
     hostnamectl set-hostname "$MASTER_HOSTNAME"
@@ -517,7 +547,7 @@ case "$1" in
     #prepare)                 prepare;;    
     #reset)                   reset;;
     #recover)                 recover $2;;
-    #boot)                    boot;;
+    boot)                    boot;;
     install)                 install $@;;
     run)                     run $@;;
     #config)                  config $@;;
