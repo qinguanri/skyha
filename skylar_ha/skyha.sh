@@ -16,10 +16,17 @@ WORK_DIR=$(cd `dirname $0`; pwd)
 IMAGE_NAME_BEANSTALKD="skylar_beanstalkd"
 IMAGE_NAME_MAIN="skylar_main"
 IMAGE_NAME_REDIS="skylar_redis"
-BEANSTALKD_MONITOR_CMD="supervisorctl status beanstalkd | grep RUNNING"
-MAIN_MONITOR_CMD="supervisorctl status nginx | grep RUNNING"
-REDIS_MONITOR_CMD="redis-cli time >/dev/null"
-POSTGRES_MONITOR_CMD="su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\""
+IMAGE_NAME_POSTGRES="skylar_pg"
+
+CONTAINER_NAME_REDIS="redis"
+CONTAINER_NAME_MAIN="main"
+CONTAINER_NAME_POSTGRES="pg"
+CONTAINER_NAME_BEANSTALKD="beanstalkd"
+
+MONITOR_CMD_BEANSTALKD="supervisorctl status beanstalkd | grep RUNNING"
+MONITOR_CMD_MAIN="supervisorctl status nginx | grep RUNNING"
+MONITOR_CMD_REDIS="redis-cli time >/dev/null"
+MONITOR_CMD_POSTGRES="su postgres -c \"psql -U postgres -Atc \\\"select now();\\\"\""
 
 source $CONF
 my_ip="$MASTER_IP"
@@ -251,19 +258,24 @@ copy_data_to_drbd() {
     drbdadm secondary skydata
 }
 
+# 配置HA的资源，在pacemaker中，被管理的业务叫做“资源”。我们这里的资源包含drbd、filesystem、docker容器等。
+# 这个函数中，我们添加资源，并且配置资源的监控命令、启动顺序、位置约束
 config_ha_resources() {
-    cidr_netmask=`ip addr | grep $MASTER_IP | grep '/' |awk {'print $2'} | awk -F '/' {'print $2'}`
-    MIN=0
-    MAX=32
-    if [ "$cidr_netmask" -lt "$MIN" ] || [ "$cidr_netmask" -gt "$MAX" ]; then
-        log_error "ERROR. cidr_netmask error. use default"
-        cidr_netmask="24"
+    # **** 首先停止残留进程，清楚残留配置
+    pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
+    if [ $pacemaker_proc -gt 0 ]; then
+        kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'})
     fi
- 
+    sleep 1
+
+    systemctl stop pacemaker.service
+    rm -rf /var/lib/pacemaker/cib/cib*
+
     cd $WORK_DIR
     rm -f resource_cfg
     pcs cluster cib resource_cfg
 
+    # **** 开始配置pacemaker资源
     # 在pacemaker级别忽略quorum
     pcs -f resource_cfg property set no-quorum-policy="ignore"
 
@@ -276,6 +288,15 @@ config_ha_resources() {
     # 设置多少次失败后迁移
     pcs -f resource_cfg resource defaults migration-threshold="3" 
     pcs -f resource_cfg resource defaults failure-timeout="10s"
+
+    # 获取子网
+    cidr_netmask=`ip addr | grep $MASTER_IP | grep '/' |awk {'print $2'} | awk -F '/' {'print $2'}`
+    MIN=0
+    MAX=32
+    if [ "$cidr_netmask" -lt "$MIN" ] || [ "$cidr_netmask" -gt "$MAX" ]; then
+        log_error "ERROR. cidr_netmask error. use default"
+        cidr_netmask="24"
+    fi
 
     # 设置master节点虚ip
     pcs -f resource_cfg resource create vip-master IPaddr2 ip="$VIP_MASTER" cidr_netmask="$cidr_netmask"\
@@ -302,38 +323,43 @@ config_ha_resources() {
     pcs -f resource_cfg resource create nfs-notify nfsnotify \
             source_host=$vip_master
 
-    for container in ${CONTAINER_LIS[@]}
+    # 添加容器。容器中运行的是我们的业务逻辑。HA主要是保证容器的高可用。
+    for container in ${CONTAINER_LIST[@]}
     do
-        IMAGE_NAME=
+        IMAGE_NAME=""
         MONITOR_CMD=""
-
+        CONTAINER_NAME=""
         if [ "$container" == "beanstalkd" ]; then
-            IMAGE_NAME=$BEANSTLKD_IMAGE_NAME
-            MONITOR_CMD=$MONITOR_BEANSTALKD_CMD
-
-            
+            IMAGE_NAME=$IMAGE_NAME_BEANSTALKD
+            MONITOR_CMD=$MONITOR_CMD_BEANSTLKD
+            CONTAINER_NAME=$CONTAINER_NAME_BEANSTALKD
         elif [ "$container" == "redis" ]; then
+            IMAGE_NAME=$IMAGE_NAME_REDIS
+            MONITOR_CMD=$MONITOR_CMD_REDIS
+            CONTAINER_NAME=$CONTAINER_NAME_REDIS
         elif [ "$container" == "pg" ]; then
+            IMAGE_NAME=$IMAGE_NAME_POSTGRES
+            MONITOR_CMD=$MONITOR_CMD_POSTGRES
+            CONTAINER_NAME=$CONTAINER_NAME_POSTGRES
         elif [ "$container" == "main" ]; then
+            IMAGE_NAME=$IMAGE_NAME_MAIN
+            MONITOR_CMD=$MONITOR_CMD_MAIN
+            CONTAINER_NAME=$CONTAINER_NAME_MAIN
         else
-
+            log_error "Unexpected container: $container"
+            return 1
         fi
-    done
-    
 
-    for file in $WORK_DIR/resource/*
-    do
-        if [ -f $file ]; then
-            $file "failover"
-            if [ $? -ne 0 ]; then
-                log_error "ERROR. execute $file failover failed."
-                return 1
-            fi
-        fi
+        pcs -f resource_cfg resource create $CONTAINER_NAME docker image=$IMAGE_NAME:latest \
+            name="$CONTAINER_NAME"\
+            monitor_cmd="$MONITOR_CMD" \
+            op start timeout="60s" interval="0s" on-fail="restart" \
+            op monitor timeout="60s" interval="10s" on-fail="restart" \
+            op stop timeout="60s" interval="0s" on-fail="block"
     done
 
     # HA组件分组:
-    pcs -f resource_cfg resource group add master-group skyfs vip-master postgres redis bstkd nfs-daemon nfs-root nfs-notify
+    pcs -f resource_cfg resource group add master-group skyfs vip-master "$CONTAINER_LIST" nfs-daemon nfs-root nfs-notify
 
     ## HA组件运行位置约束： [vip+drbd-cluster-master+skyfs+pg-cluster-master+bstkd+redis+nfs]  都运行在一台机器上
     pcs -f resource_cfg constraint colocation add master-group with drbd-cluster INFINITY with-rsc-role=Master
@@ -344,31 +370,46 @@ config_ha_resources() {
     ## HA 首次启动位置约束
     pcs -f resource_cfg constraint location drbd-cluster prefers $MASTER_HOSTNAME=10
 
+    # **** 提交配置
     pcs cluster cib-push resource_cfg
     rm -f resource_cfg
 
     sleep 2
     pcs cluster unstandby --all
 
-    if [ "$mode" == "STANDALONE" ]; then
-        $WORK_DIR/resource/pg check_master_status
-        if [ $? -ne 0 ]; then
-            log_error "ERROR. PG master status is error."
-            return 1
-        fi
-        install_finished
-        return 0
-    fi
-
     check_ha_status
     check_ha_status
     check_ha_status
     if [ $? -ne 0 ]; then
         log_error "ERROR. config failed."
-        return 1  
+        return 1
     fi
-
 }
+
+check_ha_status() {
+    TRY=1 
+    while [ $TRY -lt 60 ]
+    do
+        if check_status; then
+            log_info "OK. HA status is correct."
+            return 0
+        fi
+        
+        systemctl status pacemaker.service >>/dev/null
+        if [ $? -ne 0 ]; then
+            systemctl start pacemaker.service
+            sleep 2
+        fi
+
+        pcs cluster unstandby --all
+
+        sleep 1
+        let "TRY++"
+    done
+    log_error "ERROR. HA status is incorrect."
+    return 1
+}
+
 check()
 
 clean()
