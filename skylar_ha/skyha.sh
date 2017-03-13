@@ -580,9 +580,15 @@ extract_files() {
     mkdir -p "$RPM"
     rm -rf /usr/lib/skyha/rpm/*
     if [ "$OS_PLATFORM" == "centos" ]; then
-        cp -rf $WORK_DIR/deps/rh_7_0/* "$RPM/"
+        cp -rf $WORK_DIR/deps/centos_7_2/pacemaker/* "$RPM/pacemaker/"
+        cp -rf $WORK_DIR/deps/centos_7_2/drbd/* "$RPM/drbd/"
+        cp -rf $WORK_DIR/deps/centos_7_2/nfs/* "$RPM/nfs/"
+        cp -rf $WORK_DIR/deps/centos_7_2/iptables/* "$RPM/iptables/"
     elif [ "$OS_PLATFORM" == "rhel" ]; then
-        cp -rf $WORK_DIR/deps/centos_7_2/* "$RPM/"
+        cp -rf $WORK_DIR/deps/rh_7_0/pacemaker/* "$RPM/pacemaker/"
+        cp -rf $WORK_DIR/deps/rh_7_0/drbd/* "$RPM/drbd/"
+        cp -rf $WORK_DIR/deps/rh_7_0/nfs/* "$RPM/nfs/"
+        cp -rf $WORK_DIR/deps/rh_7_0/iptables/* "$RPM/iptables/"
     fi
 
     # 释放配置文件
