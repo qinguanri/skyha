@@ -109,9 +109,12 @@ check_conf() {
 install_rpms() {
     # **** 安装 pacemaker。
     # 安装之前先停止服务，删除旧的配置文件，目的是避免残留的进程或配置影响组件的正常安装。
+    pacemaker_proc=`ps -ef | grep pacemaker| grep -v grep | wc -l`
+    if [ $pacemaker_proc -gt 0 ]; then
+        kill -9 $(ps -ef | grep pacemaker| grep -v grep | awk {'print $2'}) >>/dev/null
+    fi
     systemctl stop pacemaker.service >> /dev/null
-    [ -f /var/lib/pacemaker/cib/cib.xml ] && rm -rf /var/lib/pacemaker/cib/cib*
-    [ -f /etc/corosync/corosync.conf ] && rm -f /etc/corosync/corosync.conf
+    systemctl stop pcsd.service >> /dev/null
 
     is_installed "pacemaker" "pcs" "psmisc" "policycoreutils"
     if [ $? -ne 0 ]; then
@@ -201,8 +204,8 @@ config_services() {
 }" > /etc/drbd.d/skydata.res
 
     # **** 配置 nfs server，散文件替换 nfsserver 资源文件
-    rm $HEARTBEAT_RSC_DIR/nfsserver
-    cp $WORK_DIR/dependent/nfsserver $HEARTBEAT_RSC_DIR/nfsserver
+    rm -f $HEARTBEAT_RSC_DIR/nfsserver
+    cp -f $WORK_DIR/dependent/nfsserver $HEARTBEAT_RSC_DIR/nfsserver
     chmod 755 $HEARTBEAT_RSC_DIR/nfsserver
     echo "" > /etc/exports
 }
@@ -621,6 +624,24 @@ if [ "$my_ip" == "$MASTER_IP" ]; then
     hostnamectl set-hostname "$MASTER_HOSTNAME"
 else
     hostnamectl set-hostname "$SLAVE_HOSTNAME"
+fi
+
+# 设置/etc/hosts
+cat /etc/hosts | grep "$MASTER_IP $MASTER_HOSTNAME"
+if [ $? -ne 0 ]; then
+    echo "$MASTER_IP $MASTER_HOSTNAME" >> /etc/hosts   
+fi
+
+# 设置/etc/hosts
+cat /etc/hosts | grep "$SLAVE_IP $SLAVE_HOSTNAME"
+if [ $? -ne 0 ]; then
+    echo "$SLAVE_IP $SLAVE_HOSTNAME" >> /etc/hosts
+fi
+
+# 设置/etc/hosts
+cat /etc/hosts | grep "$VIP_MASTER"
+if [ $? -ne 0 ]; then
+    echo "$VIP_MASTER dbmaster" >>/etc/hosts
 fi
 
 case "$1" in
