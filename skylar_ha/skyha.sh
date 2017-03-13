@@ -6,23 +6,26 @@
 #
 ###################################################
 
-CONF=/etc/skyha/ha.conf
+CONF=/etc/skyha.d/ha.conf
 BIN=/usr/local/bin/skyha
 LOG=/var/log/skyha.log
 BACKUP_DIR=/backup
 RPM=/usr/lib/skyha/rpm
 WORK_DIR=$(cd `dirname $0`; pwd)
 
+# image 的名称
 IMAGE_NAME_BEANSTALKD="skylar_beanstalkd"
 IMAGE_NAME_MAIN="skylar_main"
 IMAGE_NAME_REDIS="skylar_redis"
 IMAGE_NAME_POSTGRES="skylar_pg"
 
+# 容器的名称
 CONTAINER_NAME_REDIS="redis"
 CONTAINER_NAME_MAIN="main"
 CONTAINER_NAME_POSTGRES="pg"
 CONTAINER_NAME_BEANSTALKD="beanstalkd"
 
+# 监控命令
 MONITOR_CMD_BEANSTALKD="supervisorctl status beanstalkd | grep RUNNING"
 MONITOR_CMD_MAIN="supervisorctl status nginx | grep RUNNING"
 MONITOR_CMD_REDIS="redis-cli time >/dev/null"
@@ -70,21 +73,31 @@ check_conf() {
         return 1
     fi
 
+    if ! check_ip_valid "$MASTER_IP"; then
+        log_error "MASTER_IP:$MASTER_IP is invalid"
+        return 1
+    fi
+
     ping -c 1 "$MASTER_IP" >> /dev/null
     if [ $? -ne 0 ]; then
-        log_error 'MASTER_IP is invalid'
+        log_error 'ping MASTER_IP:$MASTER_IP failed.'
+        return 1
+    fi
+
+    if ! check_ip_valid "$SLAVE_IP"; then
+        log_error "SLAVE_IP:$SLAVE_IP is invalid"
         return 1
     fi
 
     ping -c 1 "$SLAVE_IP" >> /dev/null
     if [ $? -ne 0 ]; then
-        log_error 'SLAVE_IP is invalid'
+        log_error 'ping SLAVE_IP:$SLAVE_IP failed'
         return 1
     fi
 
     fdisk -l | grep "$LOGIC_VOLUME" >> /dev/null
     if [ $? -ne 0 ]; then
-        log_error 'LOGIC_VOLUME is invalid'
+        log_error 'LOGIC_VOLUME:$LOGIC_VOLUME is invalid'
         return 1
     fi
 }
@@ -99,7 +112,7 @@ install_rpms() {
     systemctl stop pacemaker.service >> /dev/null
     [ -f /var/lib/pacemaker/cib/cib.xml ] && rm -rf /var/lib/pacemaker/cib/cib*
     [ -f /etc/corosync/corosync.conf ] && rm -f /etc/corosync/corosync.conf
-    
+
     is_installed "pacemaker" "pcs" "psmisc" "policycoreutils"
     if [ $? -ne 0 ]; then
         yum install -y pacemaker; sleep 2
@@ -215,6 +228,7 @@ startup_services() {
     fi
 }
 
+# 停止容器。在拷贝data目录到drbd目录前，务必先要停止容器，停止业务的读写请求。
 stop_containers() {
     container_list=$@
     for container in ${container_list[@]}
@@ -265,6 +279,7 @@ copy_data_to_drbd() {
     chmod -R 776 /drbd/nfsshare/exports
     chown -R nfsnobody:nfsnobody /drbd/nfsshare/exports
 
+    stop_containers "$CONTAINER_LIST"
     log_info "--> Copy data from /data/ to /drbd/ ..."
     cp -rf /data/* /drbd/
 
@@ -319,9 +334,14 @@ config_ha_resources() {
         op stop    timeout="60s" interval="0s"  on-fail="block"
 
     # 设置 drbd 以及 filesystem 资源，使用逻辑卷挂载
-    pcs -f resource_cfg resource create skydata ocf:linbit:drbd drbd_resource=skydata op monitor interval=30s
-    pcs -f resource_cfg resource master drbd-cluster skydata master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true
-    pcs -f resource_cfg resource create skyfs Filesystem device="/dev/drbd/by-res/skydata" directory="/drbd" fstype="xfs" options="noatime,nodiratime,noexec"
+    pcs -f resource_cfg resource create skydata ocf:linbit:drbd \
+        drbd_resource=skydata op monitor interval=30s
+
+    pcs -f resource_cfg resource master drbd-cluster skydata \
+        master-max=1 master-node-max=1 clone-max=2 clone-node-max=1 notify=true
+
+    pcs -f resource_cfg resource create skyfs Filesystem \
+        device="/dev/drbd/by-res/skydata" directory="/drbd" fstype="xfs" options="noatime,nodiratime,noexec"
 
     # 设置 nfs
     pcs -f resource_cfg resource create nfs-daemon nfsserver \
@@ -333,13 +353,19 @@ config_ha_resources() {
         clientspec=* options=rw,sync,all_squash \
         directory=/drbd/nfsshare/exports fsid=0
 
-    # 添加nfsnotify， 兼容NFSv3. 
+    # 添加nfsnotify， 兼容NFSv3. NFSv3 需要一个notify信号，否则容易hung住。
     pcs -f resource_cfg resource create nfs-notify nfsnotify \
             source_host=$vip_master
 
-    # 添加容器。容器中运行的是我们的业务逻辑。HA主要是保证容器的高可用。
+    # 添加容器。容器中运行的是我们的业务逻辑。我们的任务主要是保证应用容器的高可用。
     for container in ${CONTAINER_LIST[@]}
     do
+        docker inspect "$container" >> /dev/null
+        if [ $? -ne 0 ]; then
+            log_error "There's not such a container:$container running on docker."
+            return 1
+        fi
+
         IMAGE_NAME=""
         MONITOR_CMD=""
         CONTAINER_NAME=""
@@ -364,9 +390,11 @@ config_ha_resources() {
             return 1
         fi
 
+        # 添加容器资源。注意这里使用参数 ‘reuse=true’，这样可以复用已有的容器，包括容器的启动命令、数据卷等参数。
         pcs -f resource_cfg resource create $CONTAINER_NAME docker image=$IMAGE_NAME:latest \
             name="$CONTAINER_NAME"\
             monitor_cmd="$MONITOR_CMD" \
+            reuse=true \
             op start timeout="60s" interval="0s" on-fail="restart" \
             op monitor timeout="60s" interval="10s" on-fail="restart" \
             op stop timeout="60s" interval="0s" on-fail="block"
@@ -387,14 +415,10 @@ config_ha_resources() {
     # **** 提交配置
     pcs cluster cib-push resource_cfg
     rm -f resource_cfg
-
-    sleep 2
-    pcs cluster unstandby --all
-
 }
 
 check_ha_status() {
-    TRY=1 
+    TRY=1
     while [ $TRY -lt 60 ]
     do
         if check_status; then
@@ -450,7 +474,7 @@ clean()
 
 reset()
 
-version() {
+show_version() {
     echo "version:1.0.1"
 }
 
@@ -464,6 +488,7 @@ install() {
         log_error "Config services failed."
         exit 1
     fi
+
     enable "auto_recovery"
 }
 
@@ -500,6 +525,27 @@ boot() {
     pcs cluster unstandby
 }
 
+# 检查ip格式是否正确
+check_ip_valid() {
+    echo $1|grep "^[0-9]\{1,3\}\.\([0-9]\{1,3\}\.\)\{2\}[0-9]\{1,3\}$" > /dev/null; 
+    if [ $? -ne 0 ]; then 
+        return 1 
+    fi
+    ipaddr=$1 
+    a=`echo $ipaddr|awk -F . '{print $1}'`  #以"."分隔，取出每个列的值 
+    b=`echo $ipaddr|awk -F . '{print $2}'` 
+    c=`echo $ipaddr|awk -F . '{print $3}'` 
+    d=`echo $ipaddr|awk -F . '{print $4}'` 
+    for num in $a $b $c $d 
+    do
+        if [ $num -gt 255 ] || [ $num -lt 0 ]; then 
+            return 1 
+        fi 
+    done
+    return 0
+}
+
+# 启用开机自动恢复功能。主要思想是在rc.local里添加开机启动脚本。
 enable() {
     arg=$1
     if [ "$arg" == "auto_recovery" ]; then
@@ -507,16 +553,46 @@ enable() {
         if [ $? -eq 0 ]; then
             return 0
         fi
-        echo "skyha boot >> $LOG &" >> /etc/rc.d/rc.local
+        echo "/usr/local/bin/skyha boot >> $LOG &" >> /etc/rc.d/rc.local
         chmod +x /etc/rc.local /etc/rc.d/rc.local
     fi
 }
 
+# 禁用开机自动恢复功能
 disable() {
     arg=$1
     if [ "$arg" == "auto_recovery" ]; then
         sed -i '/skyha/d' /etc/rc.d/rc.local
     fi
+}
+
+# 释放rpm包、释放可执行文件，放入指定目录
+extract_files() {
+    # 获取系统平台型号，目前暂时只支持centos7.2和redhat7.0两种
+    OS_PLATFORM="centos"
+    cat /etc/os-release | grep 'VERSION_ID="7.0"' >>/dev/null
+    if [ $? -eq 0 ]; then
+        OS_PLATFORM="rhel"
+    fi
+
+    # 释放rpm包
+    RPM=/usr/lib/skyha/rpm
+    mkdir -p "$RPM"
+    rm -rf /usr/lib/skyha/rpm/*
+    if [ "$OS_PLATFORM" == "centos" ]; then
+        cp -rf $WORK_DIR/deps/rh_7_0/* "$RPM/"
+    elif [ "$OS_PLATFORM" == "rhel" ]; then
+        cp -rf $WORK_DIR/deps/centos_7_2/* "$RPM/"
+    fi
+
+    # 释放配置文件
+    mkdir -p /etc/skyha.d
+    cp -f $WORK_DIR/conf/ha.conf.example /etc/skyha.d
+
+    # 释放可执行程序
+    mkdir -p /usr/local/bin
+    cp -f ./skyha.sh "$BIN"
+    chmod +x "$BIN"
 }
 
 source $CONF
@@ -532,7 +608,7 @@ if ! check_conf; then
     exit 1
 fi
 
-cp -f ./skyha.sh "$BIN"
+extract_files
 
 # 设置本机的 hostname
 if [ "$my_ip" == "$MASTER_IP" ]; then
@@ -559,7 +635,7 @@ case "$1" in
     #show_xml)                show_status_as_xml;;
     #switch-master-slave)     switch;;
     #setup)                   setup $@;;
-    version|-v|--version)    version;;
+    version|-v|--version)    show_version;;
     help|usage|-h|--help)    usage;;
     *)                       usage;;
 esac
