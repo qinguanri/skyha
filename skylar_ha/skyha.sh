@@ -501,13 +501,18 @@ run() {
         exit 1
     fi
 
+    if ! copy_data_to_drbd; then
+        log_error "Copy data to drbd failed."
+        exit 1
+    fi
+
     if ! config_ha_resources; then
         log_error "Config HA resources failed."
         exit 1
     fi
 
     # **** 检查HA状态，阻塞在这里，直到HA状态正确。
-    # 连续调用3次的目的是：ha状态不对时，耐心等待3次。如果ha状态正确，能立即返回。
+    # 连续调用3次的目的是：ha状态不对时，耐心等待3次。如果ha状态正确，立即返回。
     check_ha_status
     check_ha_status
     check_ha_status
@@ -583,15 +588,30 @@ extract_files() {
     mkdir -p "$RPM"
     rm -rf /usr/lib/skyha/rpm/*
     if [ "$OS_PLATFORM" == "centos" ]; then
-        cp -rf $WORK_DIR/deps/centos_7_2/pacemaker/* "$RPM/pacemaker/"
-        cp -rf $WORK_DIR/deps/centos_7_2/drbd/* "$RPM/drbd/"
-        cp -rf $WORK_DIR/deps/centos_7_2/nfs/* "$RPM/nfs/"
-        cp -rf $WORK_DIR/deps/centos_7_2/iptables/* "$RPM/iptables/"
+        cp -rf $WORK_DIR/deps/pacemaker/centos_7_2/*.rpm "$RPM/pacemaker/"
+        cp -rf $WORK_DIR/deps/pacemaker/centos_7_2/*.rpm "$RPM/pacemaker/"
+
+        cp -rf $WORK_DIR/deps/drbd/*.rpm "$RPM/drbd/"
+        cp -rf $WORK_DIR/deps/drbd/centos_7_2/* "$RPM/drbd/"
+
+        cp -rf $WORK_DIR/deps/nfs/*.rpm "$RPM/nfs/"
+        cp -rf $WORK_DIR/deps/nfs/centos_7_2/*.rpm "$RPM/nfs/"
+
+        cp -rf $WORK_DIR/deps/iptables/*.rpm "$RPM/iptables/"
+        cp -rf $WORK_DIR/deps/iptables/centos_7_2/*.rpm "$RPM/iptables/"
+
     elif [ "$OS_PLATFORM" == "rhel" ]; then
-        cp -rf $WORK_DIR/deps/rh_7_0/pacemaker/* "$RPM/pacemaker/"
-        cp -rf $WORK_DIR/deps/rh_7_0/drbd/* "$RPM/drbd/"
-        cp -rf $WORK_DIR/deps/rh_7_0/nfs/* "$RPM/nfs/"
-        cp -rf $WORK_DIR/deps/rh_7_0/iptables/* "$RPM/iptables/"
+        cp -rf $WORK_DIR/deps/pacemaker/*.rpm "$RPM/pacemaker/"
+        cp -rf $WORK_DIR/deps/pacemaker/rh_7_0/*.rpm "$RPM/pacemaker/"
+
+        cp -rf $WORK_DIR/deps/drbd/*.rpm "$RPM/drbd/"
+        cp -rf $WORK_DIR/deps/drbd/rh_7_0/*.rpm "$RPM/drbd/"
+
+        cp -rf $WORK_DIR/deps/nfs/*.rpm "$RPM/nfs/"
+        cp -rf $WORK_DIR/deps/nfs/rh_7_0/*.rpm "$RPM/nfs/"
+
+        cp -rf $WORK_DIR/deps/iptables/*.rpm "$RPM/iptables/"
+        cp -rf $WORK_DIR/deps/iptables/rh_7_0/*.rpm "$RPM/iptables/"
     fi
 
     # 释放配置文件
